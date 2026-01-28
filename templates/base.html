@@ -172,6 +172,13 @@
                     <span>IP & WHOIS</span>
                 </a>
 
+                <a href="{{ url_for('batch_page') }}" class="nav-item flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-dark-700 transition-colors {% if request.endpoint == 'batch_page' %}bg-dark-700 text-blue-400{% endif %}">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                    </svg>
+                    <span>Batch Search</span>
+                </a>
+
                 <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 mt-6">Analysis</p>
 
                 <a href="{{ url_for('images_page') }}" class="nav-item flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-dark-700 transition-colors {% if request.endpoint == 'images_page' %}bg-dark-700 text-blue-400{% endif %}">
@@ -305,6 +312,76 @@
         document.body.addEventListener('htmx:responseError', function(evt) {
             showToast('Request failed. Please try again.', 'error');
         });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            // Don't trigger shortcuts when typing in inputs
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+                return;
+            }
+
+            // g + key for navigation (Gmail-style)
+            if (e.key === '?') {
+                e.preventDefault();
+                toggleShortcutsHelp();
+            } else if (e.key === 'g') {
+                window.waitingForNav = true;
+                setTimeout(() => { window.waitingForNav = false; }, 1000);
+            } else if (window.waitingForNav) {
+                window.waitingForNav = false;
+                switch(e.key) {
+                    case 'h': window.location.href = '/'; break;
+                    case 'u': window.location.href = '/username'; break;
+                    case 'e': window.location.href = '/email'; break;
+                    case 'p': window.location.href = '/phone'; break;
+                    case 'd': window.location.href = '/domain'; break;
+                    case 'i': window.location.href = '/ip'; break;
+                    case 'b': window.location.href = '/batch'; break;
+                    case 'c': window.location.href = '/cases'; break;
+                    case 'g': window.location.href = '/graph'; break;
+                    case 's': window.location.href = '/settings'; break;
+                }
+            }
+        });
+
+        function toggleShortcutsHelp() {
+            let modal = document.getElementById('shortcuts-modal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'shortcuts-modal';
+                modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-50';
+                modal.onclick = function(e) { if (e.target === modal) modal.remove(); };
+                modal.innerHTML = `
+                    <div class="bg-dark-800 rounded-xl border border-dark-600 p-6 max-w-md w-full mx-4">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="font-semibold">Keyboard Shortcuts</h3>
+                            <button onclick="this.closest('#shortcuts-modal').remove()" class="text-gray-400 hover:text-gray-300">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <p class="text-sm text-gray-400 mb-4">Press <kbd class="px-2 py-1 bg-dark-600 rounded text-xs">g</kbd> then a letter to navigate:</p>
+                        <div class="grid grid-cols-2 gap-2 text-sm">
+                            <div><kbd class="px-2 py-1 bg-dark-600 rounded text-xs">g h</kbd> Dashboard</div>
+                            <div><kbd class="px-2 py-1 bg-dark-600 rounded text-xs">g u</kbd> Username</div>
+                            <div><kbd class="px-2 py-1 bg-dark-600 rounded text-xs">g e</kbd> Email</div>
+                            <div><kbd class="px-2 py-1 bg-dark-600 rounded text-xs">g p</kbd> Phone</div>
+                            <div><kbd class="px-2 py-1 bg-dark-600 rounded text-xs">g d</kbd> Domain</div>
+                            <div><kbd class="px-2 py-1 bg-dark-600 rounded text-xs">g i</kbd> IP/WHOIS</div>
+                            <div><kbd class="px-2 py-1 bg-dark-600 rounded text-xs">g b</kbd> Batch</div>
+                            <div><kbd class="px-2 py-1 bg-dark-600 rounded text-xs">g c</kbd> Cases</div>
+                            <div><kbd class="px-2 py-1 bg-dark-600 rounded text-xs">g g</kbd> Graph</div>
+                            <div><kbd class="px-2 py-1 bg-dark-600 rounded text-xs">g s</kbd> Settings</div>
+                        </div>
+                        <p class="text-sm text-gray-500 mt-4"><kbd class="px-2 py-1 bg-dark-600 rounded text-xs">?</kbd> Show this help</p>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+            } else {
+                modal.remove();
+            }
+        }
     </script>
 
     {% block scripts %}{% endblock %}

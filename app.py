@@ -465,6 +465,17 @@ def ip_page():
     return render_template('ip.html', cases=cases)
 
 
+@app.route('/batch')
+def batch_page():
+    """Batch search page."""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT id, name FROM cases WHERE status = "active" ORDER BY name')
+    cases = cursor.fetchall()
+    conn.close()
+    return render_template('batch.html', cases=cases)
+
+
 # ============================================================
 # API ROUTES - OSINT TOOLS
 # ============================================================
