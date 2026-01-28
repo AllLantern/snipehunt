@@ -25,7 +25,20 @@ from werkzeug.utils import secure_filename
 
 # Initialize Flask app
 app = Flask(__name__)
-app.secret_key = os.urandom(24)
+
+# Use persistent secret key to maintain sessions across restarts
+SECRET_KEY_FILE = Path.home() / '.pi-toolkit' / '.secret_key'
+SECRET_KEY_FILE.parent.mkdir(exist_ok=True)
+
+if SECRET_KEY_FILE.exists():
+    with open(SECRET_KEY_FILE, 'rb') as f:
+        app.secret_key = f.read()
+else:
+    app.secret_key = os.urandom(24)
+    with open(SECRET_KEY_FILE, 'wb') as f:
+        f.write(app.secret_key)
+    # Restrict permissions on secret key file
+    os.chmod(SECRET_KEY_FILE, 0o600)
 
 # Template context processor
 @app.context_processor
@@ -44,6 +57,7 @@ DB_PATH.parent.mkdir(exist_ok=True)
 
 # Global queues for SSE streaming
 result_queues = {}
+queue_metadata = {}  # Store metadata like expected tool count per queue
 
 
 def get_db():
@@ -176,8 +190,24 @@ def run_command_stream(cmd, queue_id):
         q.put(('end', None))
 
 
+def case_exists(case_id):
+    """Check if a case exists."""
+    if not case_id:
+        return False
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT 1 FROM cases WHERE id = ?', (case_id,))
+    exists = cursor.fetchone() is not None
+    conn.close()
+    return exists
+
+
 def save_search(case_id, search_type, query, results):
     """Save a search to the database."""
+    # Validate case_id if provided
+    if case_id and not case_exists(case_id):
+        return None
+
     conn = get_db()
     cursor = conn.cursor()
     search_id = generate_id()
@@ -492,25 +522,40 @@ def search_username():
     if not username:
         return jsonify({'error': 'Username is required'}), 400
 
+    # Sanitize username - only allow alphanumeric, underscore, hyphen, period
+    if not re.match(r'^[\w.\-]+$', username):
+        return jsonify({'error': 'Invalid username format. Only letters, numbers, underscore, hyphen, and period allowed.'}), 400
+
     # Create queue for streaming
     queue_id = generate_id()
     result_queues[queue_id] = queue.Queue()
 
+    # Track how many tools are actually being run
+    active_tools = []
+    if 'sherlock' in tools:
+        active_tools.append('sherlock')
+    if 'maigret' in tools:
+        active_tools.append('maigret')
+
+    # Store expected tool count for the streaming endpoint
+    queue_metadata[queue_id] = {'tool_count': len(active_tools)}
+
     results = {
         'sherlock': [],
         'maigret': [],
-        'queue_id': queue_id
+        'queue_id': queue_id,
+        'tool_count': len(active_tools)
     }
 
     # Run tools in background threads
-    if 'sherlock' in tools:
+    if 'sherlock' in active_tools:
         cmd = ['sherlock', username, '--print-found', '--timeout', '10']
         if nsfw:
             cmd.append('--nsfw')
         thread = threading.Thread(target=run_sherlock, args=(cmd, queue_id, username))
         thread.start()
 
-    if 'maigret' in tools:
+    if 'maigret' in active_tools:
         cmd = ['maigret', username, '--timeout', '10', '-J', 'simple']
         thread = threading.Thread(target=run_maigret, args=(cmd, queue_id, username))
         thread.start()
@@ -587,6 +632,10 @@ def stream_username_results(queue_id):
             yield f"data: {json.dumps({'error': 'Queue not found'})}\n\n"
             return
 
+        # Get expected tool count from metadata (default to 1 if not found)
+        metadata = queue_metadata.get(queue_id, {})
+        expected_tools = metadata.get('tool_count', 1)
+
         done_count = 0
         while True:
             try:
@@ -595,11 +644,13 @@ def stream_username_results(queue_id):
                 if msg_type in ('sherlock_done', 'maigret_done'):
                     done_count += 1
                     yield f"data: {json.dumps({'type': msg_type, 'message': msg_data})}\n\n"
-                    if done_count >= 2:
+                    if done_count >= expected_tools:
                         break
                 elif msg_type.endswith('_error'):
                     yield f"data: {json.dumps({'type': 'error', 'tool': msg_type.replace('_error', ''), 'message': msg_data})}\n\n"
                     done_count += 1
+                    if done_count >= expected_tools:
+                        break
                 else:
                     yield f"data: {json.dumps({'type': msg_type, 'data': msg_data})}\n\n"
 
@@ -609,6 +660,8 @@ def stream_username_results(queue_id):
         # Cleanup
         if queue_id in result_queues:
             del result_queues[queue_id]
+        if queue_id in queue_metadata:
+            del queue_metadata[queue_id]
 
     return Response(generate(), mimetype='text/event-stream')
 
@@ -617,12 +670,16 @@ def stream_username_results(queue_id):
 def search_email():
     """Search email with Holehe."""
     data = request.json
-    email = data.get('email', '').strip()
+    email = data.get('email', '').strip().lower()
     case_id = data.get('case_id')
     auto_username = data.get('auto_username', False)
 
     if not email:
         return jsonify({'error': 'Email is required'}), 400
+
+    # Validate email format
+    if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email):
+        return jsonify({'error': 'Invalid email format'}), 400
 
     results = {'accounts': [], 'error': None}
 
@@ -709,13 +766,13 @@ def lookup_phone():
 
         try:
             results['carrier'] = carrier.name_for_number(parsed, 'en')
-        except:
+        except Exception:
             pass
 
         try:
             tz = timezone.time_zones_for_number(parsed)
             results['timezone'] = list(tz) if tz else None
-        except:
+        except Exception:
             pass
 
         # Determine type
@@ -753,12 +810,24 @@ def lookup_phone():
 def search_domain():
     """Search domain with theHarvester."""
     data = request.json
-    domain = data.get('domain', '').strip()
+    domain = data.get('domain', '').strip().lower()
     sources = data.get('sources', ['google', 'bing', 'duckduckgo'])
     case_id = data.get('case_id')
 
     if not domain:
         return jsonify({'error': 'Domain is required'}), 400
+
+    # Sanitize domain - only allow valid domain characters
+    # Remove protocol and path if present
+    if domain.startswith('http://'):
+        domain = domain[7:]
+    if domain.startswith('https://'):
+        domain = domain[8:]
+    domain = domain.split('/')[0]  # Remove path
+
+    # Validate domain format
+    if not re.match(r'^[a-z0-9]([a-z0-9\-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9\-]*[a-z0-9])?)*$', domain):
+        return jsonify({'error': 'Invalid domain format'}), 400
 
     # Create queue for streaming
     queue_id = generate_id()
@@ -1066,8 +1135,12 @@ def analyze_image():
     except Exception as e:
         results['error'] = str(e)
     finally:
-        # Optionally clean up file
-        pass
+        # Clean up uploaded file after processing
+        try:
+            if os.path.exists(filepath):
+                os.remove(filepath)
+        except OSError:
+            pass
 
     # Save to case if provided
     if case_id:
@@ -1099,7 +1172,7 @@ def convert_gps_to_decimal(coord, ref):
             decimal = -decimal
 
         return round(decimal, 6)
-    except:
+    except (ValueError, IndexError, ZeroDivisionError, TypeError):
         return None
 
 
@@ -1141,6 +1214,13 @@ def analyze_document():
 
     except Exception as e:
         results['error'] = str(e)
+    finally:
+        # Clean up uploaded file after processing
+        try:
+            if os.path.exists(filepath):
+                os.remove(filepath)
+        except OSError:
+            pass
 
     # Save to case if provided
     if case_id:
@@ -1447,6 +1527,26 @@ def get_setting(key, default=None):
 # API ROUTES - IP & WHOIS LOOKUP
 # ============================================================
 
+def is_valid_ipv4(ip):
+    """Validate IPv4 address format and range."""
+    try:
+        parts = ip.split('.')
+        if len(parts) != 4:
+            return False
+        for part in parts:
+            if not part.isdigit():
+                return False
+            num = int(part)
+            if num < 0 or num > 255:
+                return False
+            # Reject leading zeros (e.g., 01.02.03.04)
+            if len(part) > 1 and part[0] == '0':
+                return False
+        return True
+    except (ValueError, AttributeError):
+        return False
+
+
 @app.route('/api/ip/lookup', methods=['POST'])
 def lookup_ip():
     """Lookup IP address information."""
@@ -1457,8 +1557,8 @@ def lookup_ip():
     if not ip:
         return jsonify({'error': 'IP address is required'}), 400
 
-    # Validate IP format
-    if not re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', ip):
+    # Validate IP format properly
+    if not is_valid_ipv4(ip):
         return jsonify({'error': 'Invalid IP address format'}), 400
 
     results = {
@@ -1476,7 +1576,7 @@ def lookup_ip():
         # Reverse DNS lookup
         try:
             results['hostname'] = socket.gethostbyaddr(ip)[0]
-        except:
+        except (socket.herror, socket.gaierror, OSError):
             pass
 
         # Try to get geolocation using ip-api.com (free, no API key)
@@ -1546,16 +1646,16 @@ def lookup_whois():
             import whois
             w = whois.whois(domain)
             results['parsed'] = {
-                'registrar': w.registrar,
-                'creation_date': str(w.creation_date) if w.creation_date else None,
-                'expiration_date': str(w.expiration_date) if w.expiration_date else None,
-                'updated_date': str(w.updated_date) if w.updated_date else None,
-                'name_servers': w.name_servers if isinstance(w.name_servers, list) else [w.name_servers] if w.name_servers else [],
-                'status': w.status if isinstance(w.status, list) else [w.status] if w.status else [],
-                'emails': w.emails if isinstance(w.emails, list) else [w.emails] if w.emails else [],
-                'registrant': w.get('registrant_name') or w.get('name'),
-                'org': w.get('org') or w.get('registrant_organization'),
-                'country': w.get('registrant_country') or w.get('country')
+                'registrar': getattr(w, 'registrar', None),
+                'creation_date': str(w.creation_date) if getattr(w, 'creation_date', None) else None,
+                'expiration_date': str(w.expiration_date) if getattr(w, 'expiration_date', None) else None,
+                'updated_date': str(w.updated_date) if getattr(w, 'updated_date', None) else None,
+                'name_servers': w.name_servers if isinstance(getattr(w, 'name_servers', None), list) else [w.name_servers] if getattr(w, 'name_servers', None) else [],
+                'status': w.status if isinstance(getattr(w, 'status', None), list) else [w.status] if getattr(w, 'status', None) else [],
+                'emails': w.emails if isinstance(getattr(w, 'emails', None), list) else [w.emails] if getattr(w, 'emails', None) else [],
+                'registrant': getattr(w, 'registrant_name', None) or getattr(w, 'name', None),
+                'org': getattr(w, 'org', None) or getattr(w, 'registrant_organization', None),
+                'country': getattr(w, 'registrant_country', None) or getattr(w, 'country', None)
             }
             results['raw'] = w.text if hasattr(w, 'text') else str(w)
         except ImportError:
@@ -1665,6 +1765,18 @@ def batch_username_search():
 
     # Limit batch size
     usernames = usernames[:20]
+
+    # Validate and sanitize usernames
+    valid_usernames = []
+    for username in usernames:
+        username = str(username).strip()
+        if username and re.match(r'^[\w.\-]+$', username):
+            valid_usernames.append(username)
+
+    if not valid_usernames:
+        return jsonify({'error': 'No valid usernames provided. Only letters, numbers, underscore, hyphen, and period allowed.'}), 400
+
+    usernames = valid_usernames
 
     # Create queue for streaming
     queue_id = generate_id()
