@@ -93,8 +93,39 @@
         </div>
     </div>
 
-    <!-- Searches -->
-    <div class="lg:col-span-2">
+    <!-- Searches and Notes -->
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Notes/Timeline -->
+        <div class="bg-dark-800 rounded-xl border border-dark-600">
+            <div class="px-6 py-4 border-b border-dark-600 flex items-center justify-between">
+                <h3 class="font-semibold">Notes & Timeline</h3>
+            </div>
+
+            <div class="p-6">
+                <!-- Add Note Form -->
+                <form id="note-form" onsubmit="addNote(event)" class="mb-6">
+                    <div class="flex space-x-3">
+                        <div class="flex-1">
+                            <textarea id="note-content" rows="2" required
+                                class="w-full bg-dark-700 border border-dark-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500 resize-none"
+                                placeholder="Add a note, observation, or update..."></textarea>
+                        </div>
+                        <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors self-end">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                            </svg>
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Notes List -->
+                <div id="notes-list" class="space-y-3">
+                    <p class="text-sm text-gray-500 text-center py-4">Loading notes...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Searches -->
         <div class="bg-dark-800 rounded-xl border border-dark-600">
             <div class="px-6 py-4 border-b border-dark-600">
                 <h3 class="font-semibold">Linked Searches ({{ searches|length }})</h3>
@@ -155,6 +186,102 @@
 
 {% block scripts %}
 <script>
+const caseId = '{{ case.id }}';
+
+// Load notes on page load
+document.addEventListener('DOMContentLoaded', loadNotes);
+
+async function loadNotes() {
+    try {
+        const response = await fetch(`/api/cases/${caseId}/notes`);
+        const notes = await response.json();
+
+        const notesList = document.getElementById('notes-list');
+
+        if (notes.length === 0) {
+            notesList.innerHTML = '<p class="text-sm text-gray-500 text-center py-4">No notes yet. Add your first note above.</p>';
+            return;
+        }
+
+        notesList.innerHTML = notes.map(note => `
+            <div class="bg-dark-700 rounded-lg p-4 group" id="note-${note.id}">
+                <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                        <p class="text-sm whitespace-pre-wrap">${escapeHtml(note.content)}</p>
+                        <p class="text-xs text-gray-500 mt-2">${note.created_at}</p>
+                    </div>
+                    <button onclick="deleteNote('${note.id}')"
+                        class="p-1 opacity-0 group-hover:opacity-100 hover:bg-red-600/20 rounded transition-all"
+                        title="Delete note">
+                        <svg class="w-4 h-4 text-gray-400 hover:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        `).join('');
+
+    } catch (error) {
+        document.getElementById('notes-list').innerHTML =
+            '<p class="text-sm text-red-400 text-center py-4">Failed to load notes</p>';
+    }
+}
+
+async function addNote(event) {
+    event.preventDefault();
+
+    const content = document.getElementById('note-content').value.trim();
+    if (!content) return;
+
+    try {
+        const response = await fetch(`/api/cases/${caseId}/notes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content })
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+            showToast(data.error, 'error');
+            return;
+        }
+
+        document.getElementById('note-content').value = '';
+        loadNotes();
+        showToast('Note added', 'success');
+
+    } catch (error) {
+        showToast('Failed to add note: ' + error.message, 'error');
+    }
+}
+
+async function deleteNote(noteId) {
+    if (!confirm('Delete this note?')) return;
+
+    try {
+        const response = await fetch(`/api/notes/${noteId}`, {
+            method: 'DELETE'
+        });
+
+        if (response.ok) {
+            document.getElementById(`note-${noteId}`).remove();
+            showToast('Note deleted', 'success');
+        } else {
+            showToast('Failed to delete note', 'error');
+        }
+
+    } catch (error) {
+        showToast('Failed to delete note: ' + error.message, 'error');
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 function toggleSearchResults(searchId) {
     const el = document.getElementById(`results-${searchId}`);
     el.classList.toggle('hidden');

@@ -111,6 +111,27 @@ def init_db():
         )
     ''')
 
+    # Settings table for API keys and configuration
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    # Notes/Timeline table for cases
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS notes (
+            id TEXT PRIMARY KEY,
+            case_id TEXT NOT NULL,
+            content TEXT NOT NULL,
+            note_type TEXT DEFAULT 'note',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (case_id) REFERENCES cases(id)
+        )
+    ''')
+
     conn.commit()
     conn.close()
 
@@ -377,6 +398,71 @@ def graph_page():
     cases = cursor.fetchall()
     conn.close()
     return render_template('graph.html', cases=cases)
+
+
+@app.route('/settings')
+def settings_page():
+    """Settings page for API keys and configuration."""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT key, value FROM settings')
+    settings = {row['key']: row['value'] for row in cursor.fetchall()}
+    conn.close()
+    return render_template('settings.html', settings=settings)
+
+
+@app.route('/history')
+def history_page():
+    """Search history page."""
+    conn = get_db()
+    cursor = conn.cursor()
+
+    # Get filter parameters
+    search_type = request.args.get('type', '')
+    case_id = request.args.get('case', '')
+
+    query = '''
+        SELECT s.*, c.name as case_name
+        FROM searches s
+        LEFT JOIN cases c ON s.case_id = c.id
+        WHERE 1=1
+    '''
+    params = []
+
+    if search_type:
+        query += ' AND s.search_type = ?'
+        params.append(search_type)
+    if case_id:
+        query += ' AND s.case_id = ?'
+        params.append(case_id)
+
+    query += ' ORDER BY s.created_at DESC LIMIT 100'
+
+    cursor.execute(query, params)
+    searches = cursor.fetchall()
+
+    # Get cases for filter dropdown
+    cursor.execute('SELECT id, name FROM cases ORDER BY name')
+    cases = cursor.fetchall()
+
+    # Get unique search types
+    cursor.execute('SELECT DISTINCT search_type FROM searches ORDER BY search_type')
+    search_types = [row['search_type'] for row in cursor.fetchall()]
+
+    conn.close()
+    return render_template('history.html', searches=searches, cases=cases,
+                          search_types=search_types, current_type=search_type, current_case=case_id)
+
+
+@app.route('/ip')
+def ip_page():
+    """IP and WHOIS lookup page."""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT id, name FROM cases WHERE status = "active" ORDER BY name')
+    cases = cursor.fetchall()
+    conn.close()
+    return render_template('ip.html', cases=cases)
 
 
 # ============================================================
@@ -1306,6 +1392,374 @@ def add_graph_relationship():
 
     rel_id = add_relationship(case_id, source_id, target_id, rel_type)
     return jsonify({'id': rel_id})
+
+
+# ============================================================
+# API ROUTES - SETTINGS
+# ============================================================
+
+@app.route('/api/settings', methods=['GET', 'POST'])
+def api_settings():
+    """Get or update settings."""
+    conn = get_db()
+    cursor = conn.cursor()
+
+    if request.method == 'POST':
+        data = request.json
+        for key, value in data.items():
+            cursor.execute('''
+                INSERT OR REPLACE INTO settings (key, value, updated_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+            ''', (key, value))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True})
+
+    # GET
+    cursor.execute('SELECT key, value FROM settings')
+    settings = {row['key']: row['value'] for row in cursor.fetchall()}
+    conn.close()
+    return jsonify(settings)
+
+
+def get_setting(key, default=None):
+    """Get a single setting value."""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT value FROM settings WHERE key = ?', (key,))
+    row = cursor.fetchone()
+    conn.close()
+    return row['value'] if row else default
+
+
+# ============================================================
+# API ROUTES - IP & WHOIS LOOKUP
+# ============================================================
+
+@app.route('/api/ip/lookup', methods=['POST'])
+def lookup_ip():
+    """Lookup IP address information."""
+    data = request.json
+    ip = data.get('ip', '').strip()
+    case_id = data.get('case_id')
+
+    if not ip:
+        return jsonify({'error': 'IP address is required'}), 400
+
+    # Validate IP format
+    if not re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', ip):
+        return jsonify({'error': 'Invalid IP address format'}), 400
+
+    results = {
+        'ip': ip,
+        'geolocation': None,
+        'hostname': None,
+        'asn': None,
+        'org': None,
+        'error': None
+    }
+
+    try:
+        import socket
+
+        # Reverse DNS lookup
+        try:
+            results['hostname'] = socket.gethostbyaddr(ip)[0]
+        except:
+            pass
+
+        # Try to get geolocation using ip-api.com (free, no API key)
+        import urllib.request
+        try:
+            url = f'http://ip-api.com/json/{ip}?fields=status,message,country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp,org,as,query'
+            with urllib.request.urlopen(url, timeout=10) as response:
+                geo_data = json.loads(response.read().decode())
+                if geo_data.get('status') == 'success':
+                    results['geolocation'] = {
+                        'country': geo_data.get('country'),
+                        'country_code': geo_data.get('countryCode'),
+                        'region': geo_data.get('regionName'),
+                        'city': geo_data.get('city'),
+                        'zip': geo_data.get('zip'),
+                        'lat': geo_data.get('lat'),
+                        'lon': geo_data.get('lon'),
+                        'timezone': geo_data.get('timezone')
+                    }
+                    results['asn'] = geo_data.get('as')
+                    results['org'] = geo_data.get('org')
+                    results['isp'] = geo_data.get('isp')
+        except Exception as e:
+            results['geo_error'] = str(e)
+
+    except Exception as e:
+        results['error'] = str(e)
+
+    # Save to case if provided
+    if case_id:
+        save_search(case_id, 'ip', ip, results)
+        add_entity(case_id, 'ip', ip)
+
+    return jsonify(results)
+
+
+@app.route('/api/whois/lookup', methods=['POST'])
+def lookup_whois():
+    """Lookup WHOIS information for a domain."""
+    data = request.json
+    domain = data.get('domain', '').strip()
+    case_id = data.get('case_id')
+
+    if not domain:
+        return jsonify({'error': 'Domain is required'}), 400
+
+    # Clean domain
+    domain = domain.lower()
+    if domain.startswith('http://'):
+        domain = domain[7:]
+    if domain.startswith('https://'):
+        domain = domain[8:]
+    if domain.startswith('www.'):
+        domain = domain[4:]
+    domain = domain.split('/')[0]
+
+    results = {
+        'domain': domain,
+        'raw': None,
+        'parsed': {},
+        'error': None
+    }
+
+    try:
+        # Try using python-whois if available
+        try:
+            import whois
+            w = whois.whois(domain)
+            results['parsed'] = {
+                'registrar': w.registrar,
+                'creation_date': str(w.creation_date) if w.creation_date else None,
+                'expiration_date': str(w.expiration_date) if w.expiration_date else None,
+                'updated_date': str(w.updated_date) if w.updated_date else None,
+                'name_servers': w.name_servers if isinstance(w.name_servers, list) else [w.name_servers] if w.name_servers else [],
+                'status': w.status if isinstance(w.status, list) else [w.status] if w.status else [],
+                'emails': w.emails if isinstance(w.emails, list) else [w.emails] if w.emails else [],
+                'registrant': w.get('registrant_name') or w.get('name'),
+                'org': w.get('org') or w.get('registrant_organization'),
+                'country': w.get('registrant_country') or w.get('country')
+            }
+            results['raw'] = w.text if hasattr(w, 'text') else str(w)
+        except ImportError:
+            # Fall back to CLI whois command
+            process = subprocess.run(
+                ['whois', domain],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            results['raw'] = process.stdout
+            # Basic parsing
+            for line in process.stdout.split('\n'):
+                line = line.strip()
+                if ':' in line:
+                    key, _, value = line.partition(':')
+                    key = key.strip().lower().replace(' ', '_')
+                    value = value.strip()
+                    if value and key in ['registrar', 'creation_date', 'registry_expiry_date', 'name_server']:
+                        if key not in results['parsed']:
+                            results['parsed'][key] = value
+                        elif isinstance(results['parsed'][key], list):
+                            results['parsed'][key].append(value)
+                        else:
+                            results['parsed'][key] = [results['parsed'][key], value]
+
+    except subprocess.TimeoutExpired:
+        results['error'] = 'WHOIS lookup timed out'
+    except FileNotFoundError:
+        results['error'] = 'WHOIS command not found. Install python-whois: pip install python-whois'
+    except Exception as e:
+        results['error'] = str(e)
+
+    # Save to case if provided
+    if case_id:
+        save_search(case_id, 'whois', domain, results)
+        add_entity(case_id, 'domain', domain)
+
+    return jsonify(results)
+
+
+# ============================================================
+# API ROUTES - NOTES
+# ============================================================
+
+@app.route('/api/cases/<case_id>/notes', methods=['GET', 'POST'])
+def api_case_notes(case_id):
+    """Get or add notes for a case."""
+    conn = get_db()
+    cursor = conn.cursor()
+
+    if request.method == 'POST':
+        data = request.json
+        content = data.get('content', '').strip()
+        note_type = data.get('type', 'note')
+
+        if not content:
+            return jsonify({'error': 'Note content is required'}), 400
+
+        note_id = generate_id()
+        cursor.execute('''
+            INSERT INTO notes (id, case_id, content, note_type)
+            VALUES (?, ?, ?, ?)
+        ''', (note_id, case_id, content, note_type))
+
+        # Update case timestamp
+        cursor.execute('UPDATE cases SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', (case_id,))
+
+        conn.commit()
+        conn.close()
+        return jsonify({'id': note_id, 'content': content, 'type': note_type})
+
+    # GET
+    cursor.execute('''
+        SELECT * FROM notes WHERE case_id = ? ORDER BY created_at DESC
+    ''', (case_id,))
+    notes = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return jsonify(notes)
+
+
+@app.route('/api/notes/<note_id>', methods=['DELETE'])
+def delete_note(note_id):
+    """Delete a note."""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM notes WHERE id = ?', (note_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+
+# ============================================================
+# API ROUTES - BATCH SEARCH
+# ============================================================
+
+@app.route('/api/batch/username', methods=['POST'])
+def batch_username_search():
+    """Batch search multiple usernames."""
+    data = request.json
+    usernames = data.get('usernames', [])
+    tools = data.get('tools', ['sherlock'])
+    case_id = data.get('case_id')
+
+    if not usernames:
+        return jsonify({'error': 'No usernames provided'}), 400
+
+    # Limit batch size
+    usernames = usernames[:20]
+
+    # Create queue for streaming
+    queue_id = generate_id()
+    result_queues[queue_id] = queue.Queue()
+
+    # Run batch search in background
+    thread = threading.Thread(target=run_batch_username, args=(usernames, tools, queue_id, case_id))
+    thread.start()
+
+    return jsonify({'queue_id': queue_id, 'count': len(usernames)})
+
+
+def run_batch_username(usernames, tools, queue_id, case_id):
+    """Run batch username search."""
+    q = result_queues.get(queue_id)
+    if not q:
+        return
+
+    for i, username in enumerate(usernames):
+        q.put(('status', f'Searching {i+1}/{len(usernames)}: {username}'))
+
+        # Save to case if provided
+        if case_id:
+            save_search(case_id, 'username', username, {'tools': tools, 'batch': True})
+            add_entity(case_id, 'username', username)
+
+        # Run sherlock
+        if 'sherlock' in tools:
+            try:
+                process = subprocess.run(
+                    ['sherlock', username, '--print-found', '--timeout', '10'],
+                    capture_output=True,
+                    text=True,
+                    timeout=60
+                )
+                for line in process.stdout.split('\n'):
+                    if '[+]' in line or 'http' in line.lower():
+                        q.put(('result', {'username': username, 'tool': 'sherlock', 'data': line.strip()}))
+            except Exception as e:
+                q.put(('error', f'Sherlock error for {username}: {str(e)}'))
+
+    q.put(('done', f'Batch search completed for {len(usernames)} usernames'))
+    q.put(('end', None))
+
+
+@app.route('/api/batch/stream/<queue_id>')
+def stream_batch_results(queue_id):
+    """Stream batch search results via SSE."""
+    def generate():
+        q = result_queues.get(queue_id)
+        if not q:
+            yield f"data: {json.dumps({'error': 'Queue not found'})}\n\n"
+            return
+
+        while True:
+            try:
+                msg_type, msg_data = q.get(timeout=120)
+
+                if msg_type == 'end':
+                    break
+                else:
+                    yield f"data: {json.dumps({'type': msg_type, 'data': msg_data})}\n\n"
+
+            except queue.Empty:
+                yield f"data: {json.dumps({'type': 'keepalive'})}\n\n"
+
+        if queue_id in result_queues:
+            del result_queues[queue_id]
+
+    return Response(generate(), mimetype='text/event-stream')
+
+
+# ============================================================
+# API ROUTES - SEARCH HISTORY
+# ============================================================
+
+@app.route('/api/searches/<search_id>', methods=['DELETE'])
+def delete_search(search_id):
+    """Delete a search from history."""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM searches WHERE id = ?', (search_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+
+@app.route('/api/searches/export')
+def export_searches():
+    """Export all searches as JSON."""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT s.*, c.name as case_name
+        FROM searches s
+        LEFT JOIN cases c ON s.case_id = c.id
+        ORDER BY s.created_at DESC
+    ''')
+    searches = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+
+    return Response(
+        json.dumps(searches, indent=2),
+        mimetype='application/json',
+        headers={'Content-Disposition': 'attachment; filename=searches_export.json'}
+    )
 
 
 # ============================================================

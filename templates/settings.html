@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - PI OSINT{% endblock %}
+{% block page_title %}Settings{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl">
+    <!-- API Keys Section -->
+    <div class="bg-dark-800 rounded-xl border border-dark-600 p-6 mb-6">
+        <h3 class="font-semibold mb-4 flex items-center space-x-2">
+            <svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+            </svg>
+            <span>API Keys</span>
+        </h3>
+        <p class="text-sm text-gray-400 mb-6">Configure API keys for enhanced functionality. Keys are stored locally and never shared.</p>
+
+        <form id="settings-form" onsubmit="saveSettings(event)" class="space-y-4">
+            <!-- Shodan -->
+            <div>
+                <label class="block text-sm text-gray-400 mb-2">Shodan API Key</label>
+                <input type="password" id="shodan_api_key" name="shodan_api_key"
+                    value="{{ settings.get('shodan_api_key', '') }}"
+                    class="w-full bg-dark-700 border border-dark-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500 font-mono"
+                    placeholder="Enter Shodan API key">
+                <p class="text-xs text-gray-500 mt-1">Get a key at <a href="https://shodan.io" target="_blank" class="text-blue-400 hover:underline">shodan.io</a></p>
+            </div>
+
+            <!-- HaveIBeenPwned -->
+            <div>
+                <label class="block text-sm text-gray-400 mb-2">Have I Been Pwned API Key</label>
+                <input type="password" id="hibp_api_key" name="hibp_api_key"
+                    value="{{ settings.get('hibp_api_key', '') }}"
+                    class="w-full bg-dark-700 border border-dark-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500 font-mono"
+                    placeholder="Enter HIBP API key">
+                <p class="text-xs text-gray-500 mt-1">Get a key at <a href="https://haveibeenpwned.com/API/Key" target="_blank" class="text-blue-400 hover:underline">haveibeenpwned.com</a></p>
+            </div>
+
+            <!-- Hunter.io -->
+            <div>
+                <label class="block text-sm text-gray-400 mb-2">Hunter.io API Key</label>
+                <input type="password" id="hunter_api_key" name="hunter_api_key"
+                    value="{{ settings.get('hunter_api_key', '') }}"
+                    class="w-full bg-dark-700 border border-dark-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500 font-mono"
+                    placeholder="Enter Hunter.io API key">
+                <p class="text-xs text-gray-500 mt-1">Get a key at <a href="https://hunter.io" target="_blank" class="text-blue-400 hover:underline">hunter.io</a></p>
+            </div>
+
+            <!-- VirusTotal -->
+            <div>
+                <label class="block text-sm text-gray-400 mb-2">VirusTotal API Key</label>
+                <input type="password" id="virustotal_api_key" name="virustotal_api_key"
+                    value="{{ settings.get('virustotal_api_key', '') }}"
+                    class="w-full bg-dark-700 border border-dark-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500 font-mono"
+                    placeholder="Enter VirusTotal API key">
+                <p class="text-xs text-gray-500 mt-1">Get a key at <a href="https://virustotal.com" target="_blank" class="text-blue-400 hover:underline">virustotal.com</a></p>
+            </div>
+
+            <!-- Google Maps -->
+            <div>
+                <label class="block text-sm text-gray-400 mb-2">Google Maps API Key (for map embeds)</label>
+                <input type="password" id="google_maps_api_key" name="google_maps_api_key"
+                    value="{{ settings.get('google_maps_api_key', '') }}"
+                    class="w-full bg-dark-700 border border-dark-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500 font-mono"
+                    placeholder="Enter Google Maps API key">
+            </div>
+
+            <button type="submit"
+                class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg transition-colors">
+                Save API Keys
+            </button>
+        </form>
+    </div>
+
+    <!-- Application Settings -->
+    <div class="bg-dark-800 rounded-xl border border-dark-600 p-6 mb-6">
+        <h3 class="font-semibold mb-4 flex items-center space-x-2">
+            <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+            <span>Application Settings</span>
+        </h3>
+
+        <form id="app-settings-form" onsubmit="saveAppSettings(event)" class="space-y-4">
+            <!-- Default timeout -->
+            <div>
+                <label class="block text-sm text-gray-400 mb-2">Default Search Timeout (seconds)</label>
+                <input type="number" id="default_timeout" name="default_timeout"
+                    value="{{ settings.get('default_timeout', '60') }}"
+                    min="10" max="300"
+                    class="w-full bg-dark-700 border border-dark-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500">
+            </div>
+
+            <!-- Auto-save searches -->
+            <div>
+                <label class="flex items-center space-x-3 cursor-pointer">
+                    <input type="checkbox" id="auto_save_searches" name="auto_save_searches"
+                        {{ 'checked' if settings.get('auto_save_searches', 'true') == 'true' else '' }}
+                        class="form-checkbox rounded bg-dark-600 border-dark-500 text-blue-500">
+                    <div>
+                        <span class="font-medium">Auto-save all searches</span>
+                        <p class="text-xs text-gray-500">Automatically save searches even without selecting a case</p>
+                    </div>
+                </label>
+            </div>
+
+            <!-- NSFW default -->
+            <div>
+                <label class="flex items-center space-x-3 cursor-pointer">
+                    <input type="checkbox" id="nsfw_default" name="nsfw_default"
+                        {{ 'checked' if settings.get('nsfw_default', 'false') == 'true' else '' }}
+                        class="form-checkbox rounded bg-dark-600 border-dark-500 text-blue-500">
+                    <div>
+                        <span class="font-medium">Include NSFW sites by default</span>
+                        <p class="text-xs text-gray-500">Search adult-oriented platforms in username searches</p>
+                    </div>
+                </label>
+            </div>
+
+            <button type="submit"
+                class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg transition-colors">
+                Save Settings
+            </button>
+        </form>
+    </div>
+
+    <!-- Data Management -->
+    <div class="bg-dark-800 rounded-xl border border-dark-600 p-6 mb-6">
+        <h3 class="font-semibold mb-4 flex items-center space-x-2">
+            <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/>
+            </svg>
+            <span>Data Management</span>
+        </h3>
+
+        <div class="space-y-4">
+            <div class="flex items-center justify-between p-4 bg-dark-700 rounded-lg">
+                <div>
+                    <p class="font-medium">Export All Data</p>
+                    <p class="text-sm text-gray-500">Download all cases, searches, and entities as JSON</p>
+                </div>
+                <a href="/api/searches/export" class="bg-dark-600 hover:bg-dark-500 px-4 py-2 rounded-lg transition-colors">
+                    Export
+                </a>
+            </div>
+
+            <div class="flex items-center justify-between p-4 bg-dark-700 rounded-lg">
+                <div>
+                    <p class="font-medium">Clear Search History</p>
+                    <p class="text-sm text-gray-500">Delete all searches (cases will remain)</p>
+                </div>
+                <button onclick="clearHistory()" class="bg-red-600/20 hover:bg-red-600/30 text-red-400 px-4 py-2 rounded-lg transition-colors">
+                    Clear
+                </button>
+            </div>
+
+            <div class="flex items-center justify-between p-4 bg-dark-700 rounded-lg">
+                <div>
+                    <p class="font-medium">Clear Uploaded Files</p>
+                    <p class="text-sm text-gray-500">Delete all uploaded images and documents</p>
+                </div>
+                <button onclick="clearUploads()" class="bg-red-600/20 hover:bg-red-600/30 text-red-400 px-4 py-2 rounded-lg transition-colors">
+                    Clear
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- About -->
+    <div class="bg-dark-800 rounded-xl border border-dark-600 p-6">
+        <h3 class="font-semibold mb-4">About PI OSINT Dashboard</h3>
+        <div class="text-sm text-gray-400 space-y-2">
+            <p><strong>Version:</strong> 1.0.0</p>
+            <p><strong>Database:</strong> ~/.pi-toolkit/cases.db</p>
+            <p class="pt-4">A comprehensive OSINT toolkit for private investigators. Integrates with Sherlock, Maigret, Holehe, theHarvester, SpiderFoot, and more.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function saveSettings(event) {
+    event.preventDefault();
+
+    const formData = new FormData(event.target);
+    const data = {};
+
+    for (const [key, value] of formData.entries()) {
+        data[key] = value;
+    }
+
+    try {
+        const response = await fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            showToast('API keys saved successfully', 'success');
+        } else {
+            showToast('Failed to save settings', 'error');
+        }
+    } catch (error) {
+        showToast('Error: ' + error.message, 'error');
+    }
+}
+
+async function saveAppSettings(event) {
+    event.preventDefault();
+
+    const data = {
+        default_timeout: document.getElementById('default_timeout').value,
+        auto_save_searches: document.getElementById('auto_save_searches').checked ? 'true' : 'false',
+        nsfw_default: document.getElementById('nsfw_default').checked ? 'true' : 'false'
+    };
+
+    try {
+        const response = await fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            showToast('Settings saved successfully', 'success');
+        } else {
+            showToast('Failed to save settings', 'error');
+        }
+    } catch (error) {
+        showToast('Error: ' + error.message, 'error');
+    }
+}
+
+async function clearHistory() {
+    if (!confirm('Are you sure you want to clear all search history? This cannot be undone.')) {
+        return;
+    }
+    showToast('Feature coming soon', 'info');
+}
+
+async function clearUploads() {
+    if (!confirm('Are you sure you want to delete all uploaded files? This cannot be undone.')) {
+        return;
+    }
+    showToast('Feature coming soon', 'info');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+
+{% block title %}IP & WHOIS Lookup - PI OSINT{% endblock %}
+{% block page_title %}IP & WHOIS Lookup{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- IP Geolocation -->
+    <div>
+        <div class="bg-dark-800 rounded-xl border border-dark-600 p-6">
+            <h3 class="font-semibold mb-4 flex items-center space-x-2">
+                <svg class="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/>
+                </svg>
+                <span>IP Geolocation</span>
+            </h3>
+
+            <form id="ip-form" onsubmit="lookupIP(event)">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">IP Address</label>
+                        <input type="text" id="ip-address" required
+                            class="w-full bg-dark-700 border border-dark-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500 font-mono"
+                            placeholder="e.g., 8.8.8.8"
+                            pattern="^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Link to Case (optional)</label>
+                        <select id="ip-case-id" class="w-full bg-dark-700 border border-dark-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500">
+                            <option value="">-- No Case --</option>
+                            {% for case in cases %}
+                            <option value="{{ case.id }}">{{ case.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <button type="submit" id="ip-btn"
+                        class="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-3 px-4 rounded-lg transition-colors">
+                        Lookup IP
+                    </button>
+                </div>
+            </form>
+
+            <!-- IP Results -->
+            <div id="ip-results" class="hidden mt-6">
+                <div id="ip-error" class="hidden p-4 bg-red-600/20 border border-red-600/50 rounded-lg mb-4">
+                    <p class="text-red-400" id="ip-error-text"></p>
+                </div>
+
+                <div id="ip-data" class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-dark-700 rounded-lg p-3">
+                            <p class="text-xs text-gray-500 uppercase">IP Address</p>
+                            <p id="ip-result-ip" class="font-mono">-</p>
+                        </div>
+                        <div class="bg-dark-700 rounded-lg p-3">
+                            <p class="text-xs text-gray-500 uppercase">Hostname</p>
+                            <p id="ip-result-hostname" class="font-mono truncate">-</p>
+                        </div>
+                        <div class="bg-dark-700 rounded-lg p-3">
+                            <p class="text-xs text-gray-500 uppercase">Country</p>
+                            <p id="ip-result-country">-</p>
+                        </div>
+                        <div class="bg-dark-700 rounded-lg p-3">
+                            <p class="text-xs text-gray-500 uppercase">City</p>
+                            <p id="ip-result-city">-</p>
+                        </div>
+                        <div class="bg-dark-700 rounded-lg p-3">
+                            <p class="text-xs text-gray-500 uppercase">ISP</p>
+                            <p id="ip-result-isp" class="truncate">-</p>
+                        </div>
+                        <div class="bg-dark-700 rounded-lg p-3">
+                            <p class="text-xs text-gray-500 uppercase">Organization</p>
+                            <p id="ip-result-org" class="truncate">-</p>
+                        </div>
+                        <div class="bg-dark-700 rounded-lg p-3">
+                            <p class="text-xs text-gray-500 uppercase">ASN</p>
+                            <p id="ip-result-asn" class="font-mono truncate">-</p>
+                        </div>
+                        <div class="bg-dark-700 rounded-lg p-3">
+                            <p class="text-xs text-gray-500 uppercase">Timezone</p>
+                            <p id="ip-result-timezone">-</p>
+                        </div>
+                    </div>
+
+                    <!-- Map -->
+                    <div id="ip-map-container" class="hidden">
+                        <p class="text-sm text-gray-400 mb-2">Location</p>
+                        <div class="bg-dark-700 rounded-lg overflow-hidden">
+                            <iframe id="ip-map" width="100%" height="200" frameborder="0" style="border:0"></iframe>
+                        </div>
+                        <a id="ip-map-link" href="#" target="_blank" class="text-sm text-blue-400 hover:underline mt-2 inline-block">
+                            Open in Google Maps
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- WHOIS Lookup -->
+    <div>
+        <div class="bg-dark-800 rounded-xl border border-dark-600 p-6">
+            <h3 class="font-semibold mb-4 flex items-center space-x-2">
+                <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                <span>WHOIS Lookup</span>
+            </h3>
+
+            <form id="whois-form" onsubmit="lookupWhois(event)">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Domain</label>
+                        <input type="text" id="whois-domain" required
+                            class="w-full bg-dark-700 border border-dark-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                            placeholder="e.g., example.com">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Link to Case (optional)</label>
+                        <select id="whois-case-id" class="w-full bg-dark-700 border border-dark-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500">
+                            <option value="">-- No Case --</option>
+                            {% for case in cases %}
+                            <option value="{{ case.id }}">{{ case.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <button type="submit" id="whois-btn"
+                        class="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-medium py-3 px-4 rounded-lg transition-colors">
+                        Lookup WHOIS
+                    </button>
+                </div>
+            </form>
+
+            <!-- WHOIS Results -->
+            <div id="whois-results" class="hidden mt-6">
+                <div id="whois-error" class="hidden p-4 bg-red-600/20 border border-red-600/50 rounded-lg mb-4">
+                    <p class="text-red-400" id="whois-error-text"></p>
+                </div>
+
+                <div id="whois-data">
+                    <div class="space-y-3 mb-4">
+                        <div class="bg-dark-700 rounded-lg p-3">
+                            <p class="text-xs text-gray-500 uppercase">Registrar</p>
+                            <p id="whois-registrar">-</p>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="bg-dark-700 rounded-lg p-3">
+                                <p class="text-xs text-gray-500 uppercase">Created</p>
+                                <p id="whois-created">-</p>
+                            </div>
+                            <div class="bg-dark-700 rounded-lg p-3">
+                                <p class="text-xs text-gray-500 uppercase">Expires</p>
+                                <p id="whois-expires">-</p>
+                            </div>
+                        </div>
+                        <div class="bg-dark-700 rounded-lg p-3">
+                            <p class="text-xs text-gray-500 uppercase">Name Servers</p>
+                            <p id="whois-nameservers" class="font-mono text-sm">-</p>
+                        </div>
+                        <div class="bg-dark-700 rounded-lg p-3">
+                            <p class="text-xs text-gray-500 uppercase">Registrant</p>
+                            <p id="whois-registrant">-</p>
+                        </div>
+                    </div>
+
+                    <!-- Raw WHOIS -->
+                    <div>
+                        <button onclick="toggleRawWhois()" class="text-sm text-blue-400 hover:text-blue-300 mb-2">
+                            Toggle Raw WHOIS
+                        </button>
+                        <pre id="whois-raw" class="hidden bg-dark-700 rounded-lg p-4 text-xs font-mono whitespace-pre-wrap max-h-64 overflow-y-auto"></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function lookupIP(event) {
+    event.preventDefault();
+
+    const ip = document.getElementById('ip-address').value.trim();
+    const caseId = document.getElementById('ip-case-id').value;
+
+    document.getElementById('ip-btn').disabled = true;
+    document.getElementById('ip-results').classList.add('hidden');
+    document.getElementById('ip-error').classList.add('hidden');
+
+    try {
+        const response = await fetch('/api/ip/lookup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ip, case_id: caseId })
+        });
+
+        const data = await response.json();
+        document.getElementById('ip-btn').disabled = false;
+        document.getElementById('ip-results').classList.remove('hidden');
+
+        if (data.error) {
+            document.getElementById('ip-error').classList.remove('hidden');
+            document.getElementById('ip-error-text').textContent = data.error;
+            return;
+        }
+
+        // Populate results
+        document.getElementById('ip-result-ip').textContent = data.ip || '-';
+        document.getElementById('ip-result-hostname').textContent = data.hostname || '-';
+
+        if (data.geolocation) {
+            const geo = data.geolocation;
+            document.getElementById('ip-result-country').textContent = geo.country || '-';
+            document.getElementById('ip-result-city').textContent = `${geo.city || '-'}, ${geo.region || ''}`;
+            document.getElementById('ip-result-timezone').textContent = geo.timezone || '-';
+
+            if (geo.lat && geo.lon) {
+                document.getElementById('ip-map-container').classList.remove('hidden');
+                document.getElementById('ip-map').src = `https://www.openstreetmap.org/export/embed.html?bbox=${geo.lon-0.1},${geo.lat-0.1},${geo.lon+0.1},${geo.lat+0.1}&layer=mapnik&marker=${geo.lat},${geo.lon}`;
+                document.getElementById('ip-map-link').href = `https://www.google.com/maps?q=${geo.lat},${geo.lon}`;
+            }
+        }
+
+        document.getElementById('ip-result-isp').textContent = data.isp || '-';
+        document.getElementById('ip-result-org').textContent = data.org || '-';
+        document.getElementById('ip-result-asn').textContent = data.asn || '-';
+
+        showToast('IP lookup completed', 'success');
+
+    } catch (error) {
+        document.getElementById('ip-btn').disabled = false;
+        showToast('Lookup failed: ' + error.message, 'error');
+    }
+}
+
+async function lookupWhois(event) {
+    event.preventDefault();
+
+    const domain = document.getElementById('whois-domain').value.trim();
+    const caseId = document.getElementById('whois-case-id').value;
+
+    document.getElementById('whois-btn').disabled = true;
+    document.getElementById('whois-results').classList.add('hidden');
+    document.getElementById('whois-error').classList.add('hidden');
+
+    try {
+        const response = await fetch('/api/whois/lookup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ domain, case_id: caseId })
+        });
+
+        const data = await response.json();
+        document.getElementById('whois-btn').disabled = false;
+        document.getElementById('whois-results').classList.remove('hidden');
+
+        if (data.error) {
+            document.getElementById('whois-error').classList.remove('hidden');
+            document.getElementById('whois-error-text').textContent = data.error;
+            return;
+        }
+
+        // Populate results
+        const parsed = data.parsed || {};
+        document.getElementById('whois-registrar').textContent = parsed.registrar || '-';
+        document.getElementById('whois-created').textContent = parsed.creation_date || '-';
+        document.getElementById('whois-expires').textContent = parsed.expiration_date || '-';
+
+        const ns = parsed.name_servers;
+        document.getElementById('whois-nameservers').textContent = Array.isArray(ns) ? ns.join('\n') : (ns || '-');
+
+        document.getElementById('whois-registrant').textContent = parsed.registrant || parsed.org || '-';
+
+        if (data.raw) {
+            document.getElementById('whois-raw').textContent = data.raw;
+        }
+
+        showToast('WHOIS lookup completed', 'success');
+
+    } catch (error) {
+        document.getElementById('whois-btn').disabled = false;
+        showToast('Lookup failed: ' + error.message, 'error');
+    }
+}
+
+function toggleRawWhois() {
+    document.getElementById('whois-raw').classList.toggle('hidden');
+}
+</script>
+{% endblock %}
