@@ -1,0 +1,324 @@
+{% extends "base.html" %}
+
+{% block title %}Domain Recon - PI OSINT{% endblock %}
+{% block page_title %}Domain Recon{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Search Form -->
+    <div class="lg:col-span-1">
+        <div class="bg-dark-800 rounded-xl border border-dark-600 p-6">
+            <h3 class="font-semibold mb-4">Domain Search</h3>
+
+            <form id="domain-form" onsubmit="searchDomain(event)">
+                <div class="space-y-4">
+                    <!-- Domain Input -->
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Domain</label>
+                        <input type="text" id="domain" name="domain" required
+                            class="w-full bg-dark-700 border border-dark-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                            placeholder="example.com">
+                    </div>
+
+                    <!-- Data Sources -->
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Data Sources</label>
+                        <div class="space-y-2 max-h-48 overflow-y-auto">
+                            <label class="flex items-center space-x-3 p-2 bg-dark-700 rounded-lg cursor-pointer hover:bg-dark-600">
+                                <input type="checkbox" name="sources" value="google" checked class="form-checkbox rounded bg-dark-600 border-dark-500 text-purple-500">
+                                <span class="text-sm">Google</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 bg-dark-700 rounded-lg cursor-pointer hover:bg-dark-600">
+                                <input type="checkbox" name="sources" value="bing" checked class="form-checkbox rounded bg-dark-600 border-dark-500 text-purple-500">
+                                <span class="text-sm">Bing</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 bg-dark-700 rounded-lg cursor-pointer hover:bg-dark-600">
+                                <input type="checkbox" name="sources" value="duckduckgo" checked class="form-checkbox rounded bg-dark-600 border-dark-500 text-purple-500">
+                                <span class="text-sm">DuckDuckGo</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 bg-dark-700 rounded-lg cursor-pointer hover:bg-dark-600">
+                                <input type="checkbox" name="sources" value="linkedin" class="form-checkbox rounded bg-dark-600 border-dark-500 text-purple-500">
+                                <span class="text-sm">LinkedIn</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 bg-dark-700 rounded-lg cursor-pointer hover:bg-dark-600">
+                                <input type="checkbox" name="sources" value="twitter" class="form-checkbox rounded bg-dark-600 border-dark-500 text-purple-500">
+                                <span class="text-sm">Twitter</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 bg-dark-700 rounded-lg cursor-pointer hover:bg-dark-600">
+                                <input type="checkbox" name="sources" value="dnsdumpster" class="form-checkbox rounded bg-dark-600 border-dark-500 text-purple-500">
+                                <span class="text-sm">DNSDumpster</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 bg-dark-700 rounded-lg cursor-pointer hover:bg-dark-600">
+                                <input type="checkbox" name="sources" value="crtsh" class="form-checkbox rounded bg-dark-600 border-dark-500 text-purple-500">
+                                <span class="text-sm">crt.sh (SSL Certs)</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Link to Case -->
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Link to Case (optional)</label>
+                        <select name="case_id" id="case_id" class="w-full bg-dark-700 border border-dark-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500">
+                            <option value="">-- No Case --</option>
+                            {% for case in cases %}
+                            <option value="{{ case.id }}">{{ case.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" id="search-btn"
+                        class="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center space-x-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/>
+                        </svg>
+                        <span>Start Recon</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Results -->
+    <div class="lg:col-span-2">
+        <div class="bg-dark-800 rounded-xl border border-dark-600">
+            <div class="px-6 py-4 border-b border-dark-600 flex items-center justify-between">
+                <h3 class="font-semibold">Reconnaissance Results</h3>
+                <div id="status-indicator" class="hidden flex items-center space-x-2">
+                    <div class="spinner"></div>
+                    <span class="text-sm text-gray-400">Scanning...</span>
+                </div>
+            </div>
+
+            <div class="p-6" id="results-container">
+                <!-- Empty State -->
+                <div id="empty-state" class="text-center py-12">
+                    <svg class="w-16 h-16 mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/>
+                    </svg>
+                    <h4 class="text-lg font-medium text-gray-400">No Results Yet</h4>
+                    <p class="text-gray-500 mt-1">Enter a domain to begin reconnaissance</p>
+                </div>
+
+                <!-- Results Grid -->
+                <div id="results-grid" class="hidden space-y-6">
+                    <!-- Emails Found -->
+                    <div>
+                        <h4 class="font-medium mb-3 flex items-center space-x-2">
+                            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                            </svg>
+                            <span>Emails Found</span>
+                            <span id="email-count" class="text-sm text-gray-500">(0)</span>
+                        </h4>
+                        <div id="emails-list" class="bg-dark-700 rounded-lg p-4 max-h-48 overflow-y-auto">
+                            <p class="text-gray-500 text-sm">No emails found yet...</p>
+                        </div>
+                    </div>
+
+                    <!-- Subdomains/Hosts -->
+                    <div>
+                        <h4 class="font-medium mb-3 flex items-center space-x-2">
+                            <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/>
+                            </svg>
+                            <span>Hosts/Subdomains</span>
+                            <span id="host-count" class="text-sm text-gray-500">(0)</span>
+                        </h4>
+                        <div id="hosts-list" class="bg-dark-700 rounded-lg p-4 max-h-48 overflow-y-auto">
+                            <p class="text-gray-500 text-sm">No hosts found yet...</p>
+                        </div>
+                    </div>
+
+                    <!-- IPs -->
+                    <div>
+                        <h4 class="font-medium mb-3 flex items-center space-x-2">
+                            <svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
+                            </svg>
+                            <span>IP Addresses</span>
+                            <span id="ip-count" class="text-sm text-gray-500">(0)</span>
+                        </h4>
+                        <div id="ips-list" class="bg-dark-700 rounded-lg p-4 max-h-48 overflow-y-auto">
+                            <p class="text-gray-500 text-sm">No IPs found yet...</p>
+                        </div>
+                    </div>
+
+                    <!-- Raw Output -->
+                    <div>
+                        <h4 class="font-medium mb-3 flex items-center justify-between">
+                            <span>Raw Output</span>
+                            <button onclick="toggleRawOutput()" class="text-sm text-blue-400 hover:text-blue-300">Toggle</button>
+                        </h4>
+                        <div id="raw-output" class="hidden bg-dark-700 rounded-lg p-4 max-h-64 overflow-y-auto font-mono text-xs">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let eventSource = null;
+let emailCount = 0;
+let hostCount = 0;
+let ipCount = 0;
+
+function toggleRawOutput() {
+    document.getElementById('raw-output').classList.toggle('hidden');
+}
+
+async function searchDomain(event) {
+    event.preventDefault();
+
+    const domain = document.getElementById('domain').value.trim();
+    if (!domain) return;
+
+    // Get selected sources
+    const sources = Array.from(document.querySelectorAll('input[name="sources"]:checked')).map(el => el.value);
+    if (sources.length === 0) {
+        showToast('Please select at least one data source', 'warning');
+        return;
+    }
+
+    const caseId = document.getElementById('case_id').value;
+
+    // Reset UI
+    emailCount = 0;
+    hostCount = 0;
+    ipCount = 0;
+    document.getElementById('emails-list').innerHTML = '<p class="text-gray-500 text-sm">Scanning...</p>';
+    document.getElementById('hosts-list').innerHTML = '<p class="text-gray-500 text-sm">Scanning...</p>';
+    document.getElementById('ips-list').innerHTML = '<p class="text-gray-500 text-sm">Scanning...</p>';
+    document.getElementById('raw-output').innerHTML = '';
+    document.getElementById('email-count').textContent = '(0)';
+    document.getElementById('host-count').textContent = '(0)';
+    document.getElementById('ip-count').textContent = '(0)';
+    document.getElementById('empty-state').classList.add('hidden');
+    document.getElementById('results-grid').classList.remove('hidden');
+    document.getElementById('status-indicator').classList.remove('hidden');
+    document.getElementById('search-btn').disabled = true;
+
+    try {
+        const response = await fetch('/api/domain/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ domain, sources, case_id: caseId })
+        });
+
+        const data = await response.json();
+        if (data.error) {
+            showToast(data.error, 'error');
+            return;
+        }
+
+        // Connect to SSE stream
+        if (eventSource) {
+            eventSource.close();
+        }
+
+        eventSource = new EventSource(`/api/domain/stream/${data.queue_id}`);
+
+        eventSource.onmessage = function(event) {
+            const msg = JSON.parse(event.data);
+
+            if (msg.type === 'email' && msg.data) {
+                addEmail(msg.data);
+            } else if (msg.type === 'host' && msg.data) {
+                addHost(msg.data);
+            } else if (msg.type === 'ip' && msg.data) {
+                addIP(msg.data);
+            } else if (msg.type === 'raw' && msg.data) {
+                addRawLine(msg.data);
+            } else if (msg.type === 'done') {
+                showToast(msg.message, 'success');
+                eventSource.close();
+                document.getElementById('status-indicator').classList.add('hidden');
+                document.getElementById('search-btn').disabled = false;
+            } else if (msg.type === 'error') {
+                showToast(msg.message, 'error');
+                eventSource.close();
+                document.getElementById('status-indicator').classList.add('hidden');
+                document.getElementById('search-btn').disabled = false;
+            }
+        };
+
+        eventSource.onerror = function() {
+            eventSource.close();
+            document.getElementById('status-indicator').classList.add('hidden');
+            document.getElementById('search-btn').disabled = false;
+        };
+
+    } catch (error) {
+        showToast('Search failed: ' + error.message, 'error');
+        document.getElementById('status-indicator').classList.add('hidden');
+        document.getElementById('search-btn').disabled = false;
+    }
+}
+
+function addEmail(email) {
+    const list = document.getElementById('emails-list');
+    if (emailCount === 0) {
+        list.innerHTML = '';
+    }
+
+    const item = document.createElement('div');
+    item.className = 'flex items-center space-x-2 py-1';
+    item.innerHTML = `
+        <span class="text-green-400">@</span>
+        <span class="font-mono text-sm">${email}</span>
+    `;
+    list.appendChild(item);
+
+    emailCount++;
+    document.getElementById('email-count').textContent = `(${emailCount})`;
+}
+
+function addHost(host) {
+    const list = document.getElementById('hosts-list');
+    if (hostCount === 0) {
+        list.innerHTML = '';
+    }
+
+    const item = document.createElement('div');
+    item.className = 'flex items-center space-x-2 py-1';
+    item.innerHTML = `
+        <span class="text-blue-400">•</span>
+        <span class="font-mono text-sm">${host}</span>
+    `;
+    list.appendChild(item);
+
+    hostCount++;
+    document.getElementById('host-count').textContent = `(${hostCount})`;
+}
+
+function addIP(ip) {
+    const list = document.getElementById('ips-list');
+    if (ipCount === 0) {
+        list.innerHTML = '';
+    }
+
+    const item = document.createElement('div');
+    item.className = 'flex items-center space-x-2 py-1';
+    item.innerHTML = `
+        <span class="text-yellow-400">•</span>
+        <span class="font-mono text-sm">${ip}</span>
+    `;
+    list.appendChild(item);
+
+    ipCount++;
+    document.getElementById('ip-count').textContent = `(${ipCount})`;
+}
+
+function addRawLine(line) {
+    const output = document.getElementById('raw-output');
+    const lineEl = document.createElement('div');
+    lineEl.textContent = line;
+    output.appendChild(lineEl);
+    output.scrollTop = output.scrollHeight;
+}
+</script>
+{% endblock %}

@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+
+{% block title %}SpiderFoot - PI OSINT{% endblock %}
+{% block page_title %}SpiderFoot{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Search Form -->
+    <div class="lg:col-span-1">
+        <div class="bg-dark-800 rounded-xl border border-dark-600 p-6">
+            <h3 class="font-semibold mb-4">SpiderFoot Scan</h3>
+
+            <form id="spiderfoot-form" onsubmit="startScan(event)">
+                <div class="space-y-4">
+                    <!-- Target Input -->
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Target</label>
+                        <input type="text" id="target" name="target" required
+                            class="w-full bg-dark-700 border border-dark-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                            placeholder="Domain, IP, email, username, or phone">
+                        <p id="target-type" class="text-xs text-gray-500 mt-1">Type will be auto-detected</p>
+                    </div>
+
+                    <!-- Module Selection -->
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Modules</label>
+                        <div class="space-y-2 max-h-64 overflow-y-auto">
+                            <label class="flex items-center space-x-3 p-2 bg-dark-700 rounded-lg cursor-pointer hover:bg-dark-600">
+                                <input type="checkbox" name="modules" value="sfp_dns" checked class="form-checkbox rounded bg-dark-600 border-dark-500 text-red-500">
+                                <div>
+                                    <span class="text-sm font-medium">DNS Lookup</span>
+                                    <p class="text-xs text-gray-500">Resolve DNS records</p>
+                                </div>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 bg-dark-700 rounded-lg cursor-pointer hover:bg-dark-600">
+                                <input type="checkbox" name="modules" value="sfp_whois" checked class="form-checkbox rounded bg-dark-600 border-dark-500 text-red-500">
+                                <div>
+                                    <span class="text-sm font-medium">WHOIS</span>
+                                    <p class="text-xs text-gray-500">Domain registration info</p>
+                                </div>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 bg-dark-700 rounded-lg cursor-pointer hover:bg-dark-600">
+                                <input type="checkbox" name="modules" value="sfp_socialnetworks" class="form-checkbox rounded bg-dark-600 border-dark-500 text-red-500">
+                                <div>
+                                    <span class="text-sm font-medium">Social Networks</span>
+                                    <p class="text-xs text-gray-500">Social media profiles</p>
+                                </div>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 bg-dark-700 rounded-lg cursor-pointer hover:bg-dark-600">
+                                <input type="checkbox" name="modules" value="sfp_email" class="form-checkbox rounded bg-dark-600 border-dark-500 text-red-500">
+                                <div>
+                                    <span class="text-sm font-medium">Email Addresses</span>
+                                    <p class="text-xs text-gray-500">Find associated emails</p>
+                                </div>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 bg-dark-700 rounded-lg cursor-pointer hover:bg-dark-600">
+                                <input type="checkbox" name="modules" value="sfp_dnsbrute" class="form-checkbox rounded bg-dark-600 border-dark-500 text-red-500">
+                                <div>
+                                    <span class="text-sm font-medium">DNS Brute Force</span>
+                                    <p class="text-xs text-gray-500">Find subdomains</p>
+                                </div>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 bg-dark-700 rounded-lg cursor-pointer hover:bg-dark-600">
+                                <input type="checkbox" name="modules" value="sfp_shodan" class="form-checkbox rounded bg-dark-600 border-dark-500 text-red-500">
+                                <div>
+                                    <span class="text-sm font-medium">Shodan</span>
+                                    <p class="text-xs text-gray-500">Search Shodan (requires API key)</p>
+                                </div>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 bg-dark-700 rounded-lg cursor-pointer hover:bg-dark-600">
+                                <input type="checkbox" name="modules" value="sfp_haveibeenpwned" class="form-checkbox rounded bg-dark-600 border-dark-500 text-red-500">
+                                <div>
+                                    <span class="text-sm font-medium">Have I Been Pwned</span>
+                                    <p class="text-xs text-gray-500">Check data breaches</p>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Link to Case -->
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Link to Case (optional)</label>
+                        <select name="case_id" id="case_id" class="w-full bg-dark-700 border border-dark-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500">
+                            <option value="">-- No Case --</option>
+                            {% for case in cases %}
+                            <option value="{{ case.id }}">{{ case.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" id="search-btn"
+                        class="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center space-x-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
+                        </svg>
+                        <span>Start Scan</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- SpiderFoot Info -->
+        <div class="bg-dark-800 rounded-xl border border-dark-600 p-6 mt-6">
+            <h4 class="font-semibold mb-3">About SpiderFoot</h4>
+            <p class="text-sm text-gray-400">
+                SpiderFoot is an open source intelligence automation tool. It integrates with over 200 data sources to gather intelligence on IPs, domains, emails, and more.
+            </p>
+            <div class="mt-4 p-3 bg-yellow-600/20 rounded-lg border border-yellow-600/50">
+                <p class="text-xs text-yellow-400">
+                    Note: Full scans can take a long time. Select only the modules you need.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results -->
+    <div class="lg:col-span-2">
+        <div class="bg-dark-800 rounded-xl border border-dark-600">
+            <div class="px-6 py-4 border-b border-dark-600 flex items-center justify-between">
+                <h3 class="font-semibold">Scan Results</h3>
+                <div id="status-indicator" class="hidden flex items-center space-x-2">
+                    <div class="spinner"></div>
+                    <span id="status-text" class="text-sm text-gray-400">Starting scan...</span>
+                </div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div id="progress-container" class="hidden px-6 py-3 border-b border-dark-600">
+                <div class="flex items-center justify-between text-sm mb-2">
+                    <span class="text-gray-400">Scan Progress</span>
+                    <span id="progress-percent" class="text-gray-400">0%</span>
+                </div>
+                <div class="w-full bg-dark-600 rounded-full h-2">
+                    <div id="progress-bar" class="bg-red-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div class="p-6" id="results-container">
+                <!-- Empty State -->
+                <div id="empty-state" class="text-center py-12">
+                    <svg class="w-16 h-16 mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
+                    </svg>
+                    <h4 class="text-lg font-medium text-gray-400">No Scan Running</h4>
+                    <p class="text-gray-500 mt-1">Configure target and modules to start a scan</p>
+                </div>
+
+                <!-- Results List -->
+                <div id="results-list" class="hidden space-y-2 max-h-[600px] overflow-y-auto">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let eventSource = null;
+let resultCount = 0;
+
+// Auto-detect target type
+document.getElementById('target').addEventListener('input', function(e) {
+    const value = e.target.value.trim();
+    let typeText = 'Type will be auto-detected';
+
+    if (value.includes('@') && value.includes('.')) {
+        typeText = 'Detected: Email Address';
+    } else if (/^\d+\.\d+\.\d+\.\d+$/.test(value)) {
+        typeText = 'Detected: IP Address';
+    } else if (value.includes('.') && !value.startsWith('http')) {
+        typeText = 'Detected: Domain';
+    } else if (value.startsWith('http')) {
+        typeText = 'Detected: URL';
+    } else if (/^[\d\+\-\(\)\s]+$/.test(value) && value.replace(/\D/g, '').length >= 7) {
+        typeText = 'Detected: Phone Number';
+    } else if (value.length > 0) {
+        typeText = 'Detected: Username';
+    }
+
+    document.getElementById('target-type').textContent = typeText;
+});
+
+async function startScan(event) {
+    event.preventDefault();
+
+    const target = document.getElementById('target').value.trim();
+    if (!target) return;
+
+    const modules = Array.from(document.querySelectorAll('input[name="modules"]:checked')).map(el => el.value);
+    const caseId = document.getElementById('case_id').value;
+
+    // Reset UI
+    resultCount = 0;
+    document.getElementById('results-list').innerHTML = '';
+    document.getElementById('empty-state').classList.add('hidden');
+    document.getElementById('results-list').classList.remove('hidden');
+    document.getElementById('status-indicator').classList.remove('hidden');
+    document.getElementById('progress-container').classList.remove('hidden');
+    document.getElementById('progress-bar').style.width = '0%';
+    document.getElementById('progress-percent').textContent = '0%';
+    document.getElementById('search-btn').disabled = true;
+
+    try {
+        const response = await fetch('/api/spiderfoot/scan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ target, modules, case_id: caseId })
+        });
+
+        const data = await response.json();
+        if (data.error) {
+            showToast(data.error, 'error');
+            document.getElementById('status-indicator').classList.add('hidden');
+            document.getElementById('search-btn').disabled = false;
+            return;
+        }
+
+        document.getElementById('status-text').textContent = `Scanning ${data.target_type}: ${target}`;
+
+        // Connect to SSE stream
+        if (eventSource) {
+            eventSource.close();
+        }
+
+        eventSource = new EventSource(`/api/spiderfoot/stream/${data.queue_id}`);
+
+        eventSource.onmessage = function(event) {
+            const msg = JSON.parse(event.data);
+
+            if (msg.type === 'data' && msg.data) {
+                addResult(msg.data);
+                updateProgress();
+            } else if (msg.type === 'done') {
+                showToast(msg.message, 'success');
+                eventSource.close();
+                finishScan();
+            } else if (msg.type === 'error') {
+                showToast(msg.message, 'error');
+                eventSource.close();
+                finishScan();
+            }
+        };
+
+        eventSource.onerror = function() {
+            eventSource.close();
+            finishScan();
+        };
+
+    } catch (error) {
+        showToast('Scan failed: ' + error.message, 'error');
+        finishScan();
+    }
+}
+
+function addResult(line) {
+    const list = document.getElementById('results-list');
+
+    const item = document.createElement('div');
+    item.className = 'p-3 bg-dark-700 rounded-lg text-sm font-mono break-all';
+    item.textContent = line;
+    list.appendChild(item);
+    list.scrollTop = list.scrollHeight;
+
+    resultCount++;
+}
+
+function updateProgress() {
+    // Simulate progress (actual progress depends on SpiderFoot)
+    const progress = Math.min(resultCount * 2, 95);
+    document.getElementById('progress-bar').style.width = progress + '%';
+    document.getElementById('progress-percent').textContent = progress + '%';
+}
+
+function finishScan() {
+    document.getElementById('status-indicator').classList.add('hidden');
+    document.getElementById('search-btn').disabled = false;
+    document.getElementById('progress-bar').style.width = '100%';
+    document.getElementById('progress-percent').textContent = '100%';
+
+    if (resultCount === 0) {
+        document.getElementById('results-list').classList.add('hidden');
+        document.getElementById('empty-state').classList.remove('hidden');
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+
+{% block title %}Email OSINT - PI OSINT{% endblock %}
+{% block page_title %}Email OSINT{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Search Form -->
+    <div class="lg:col-span-1">
+        <div class="bg-dark-800 rounded-xl border border-dark-600 p-6">
+            <h3 class="font-semibold mb-4">Email Search</h3>
+
+            <form id="email-form" onsubmit="searchEmail(event)">
+                <div class="space-y-4">
+                    <!-- Email Input -->
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Email Address</label>
+                        <input type="email" id="email" name="email" required
+                            class="w-full bg-dark-700 border border-dark-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                            placeholder="target@example.com">
+                    </div>
+
+                    <!-- Options -->
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Options</label>
+                        <label class="flex items-center space-x-3 p-2 bg-dark-700 rounded-lg cursor-pointer hover:bg-dark-600">
+                            <input type="checkbox" name="auto_username" id="auto_username" checked class="form-checkbox rounded bg-dark-600 border-dark-500 text-blue-500">
+                            <div>
+                                <span class="font-medium">Auto-search Username</span>
+                                <p class="text-xs text-gray-500">Search email prefix as username</p>
+                            </div>
+                        </label>
+                    </div>
+
+                    <!-- Link to Case -->
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Link to Case (optional)</label>
+                        <select name="case_id" id="case_id" class="w-full bg-dark-700 border border-dark-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500">
+                            <option value="">-- No Case --</option>
+                            {% for case in cases %}
+                            <option value="{{ case.id }}">{{ case.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" id="search-btn"
+                        class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center space-x-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                        </svg>
+                        <span>Search Email</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Email Format Info -->
+        <div class="bg-dark-800 rounded-xl border border-dark-600 p-6 mt-6">
+            <h4 class="font-semibold mb-3">About Holehe</h4>
+            <p class="text-sm text-gray-400 mb-3">
+                Holehe checks if an email is attached to accounts on various websites like Twitter, Instagram, LinkedIn, and more.
+            </p>
+            <p class="text-sm text-gray-400">
+                It uses the "forgot password" feature to verify accounts without alerting the target.
+            </p>
+        </div>
+    </div>
+
+    <!-- Results -->
+    <div class="lg:col-span-2">
+        <div class="bg-dark-800 rounded-xl border border-dark-600">
+            <div class="px-6 py-4 border-b border-dark-600 flex items-center justify-between">
+                <h3 class="font-semibold">Found Accounts</h3>
+                <div id="status-indicator" class="hidden flex items-center space-x-2">
+                    <div class="spinner"></div>
+                    <span class="text-sm text-gray-400">Checking accounts...</span>
+                </div>
+            </div>
+
+            <div class="p-6" id="results-container">
+                <!-- Empty State -->
+                <div id="empty-state" class="text-center py-12">
+                    <svg class="w-16 h-16 mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                    </svg>
+                    <h4 class="text-lg font-medium text-gray-400">No Results Yet</h4>
+                    <p class="text-gray-500 mt-1">Enter an email address to check for linked accounts</p>
+                </div>
+
+                <!-- Results Grid -->
+                <div id="results-grid" class="hidden">
+                    <div id="accounts-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+                </div>
+
+                <!-- Error State -->
+                <div id="error-state" class="hidden text-center py-12">
+                    <svg class="w-16 h-16 mx-auto mb-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <h4 class="text-lg font-medium text-red-400">Error</h4>
+                    <p id="error-message" class="text-gray-500 mt-1"></p>
+                </div>
+
+                <!-- Username Suggestion -->
+                <div id="username-suggestion" class="hidden mt-6 p-4 bg-dark-700 rounded-lg">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-400">Email prefix detected:</p>
+                            <p id="username-prefix" class="font-medium"></p>
+                        </div>
+                        <a id="username-link" href="#" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm transition-colors">
+                            Search as Username
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function searchEmail(event) {
+    event.preventDefault();
+
+    const email = document.getElementById('email').value.trim();
+    if (!email) return;
+
+    const autoUsername = document.getElementById('auto_username').checked;
+    const caseId = document.getElementById('case_id').value;
+
+    // Reset UI
+    document.getElementById('accounts-list').innerHTML = '';
+    document.getElementById('empty-state').classList.add('hidden');
+    document.getElementById('error-state').classList.add('hidden');
+    document.getElementById('results-grid').classList.add('hidden');
+    document.getElementById('username-suggestion').classList.add('hidden');
+    document.getElementById('status-indicator').classList.remove('hidden');
+    document.getElementById('search-btn').disabled = true;
+
+    try {
+        const response = await fetch('/api/email/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, auto_username: autoUsername, case_id: caseId })
+        });
+
+        const data = await response.json();
+
+        document.getElementById('status-indicator').classList.add('hidden');
+        document.getElementById('search-btn').disabled = false;
+
+        if (data.error) {
+            document.getElementById('error-state').classList.remove('hidden');
+            document.getElementById('error-message').textContent = data.error;
+            showToast(data.error, 'error');
+            return;
+        }
+
+        if (data.accounts && data.accounts.length > 0) {
+            document.getElementById('results-grid').classList.remove('hidden');
+
+            data.accounts.forEach(account => {
+                const item = document.createElement('div');
+                item.className = 'flex items-center space-x-3 p-3 bg-dark-700 rounded-lg';
+                item.innerHTML = `
+                    <div class="w-10 h-10 bg-green-600/20 rounded-lg flex items-center justify-center">
+                        <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="font-medium truncate">${account.service}</p>
+                        <p class="text-xs text-gray-500">Account found</p>
+                    </div>
+                `;
+                document.getElementById('accounts-list').appendChild(item);
+            });
+
+            showToast(`Found ${data.accounts.length} accounts`, 'success');
+        } else {
+            document.getElementById('empty-state').classList.remove('hidden');
+            showToast('No accounts found', 'info');
+        }
+
+        // Show username suggestion
+        if (data.username_prefix) {
+            document.getElementById('username-suggestion').classList.remove('hidden');
+            document.getElementById('username-prefix').textContent = data.username_prefix;
+            document.getElementById('username-link').href = `/username?q=${encodeURIComponent(data.username_prefix)}`;
+        }
+
+    } catch (error) {
+        document.getElementById('status-indicator').classList.add('hidden');
+        document.getElementById('search-btn').disabled = false;
+        document.getElementById('error-state').classList.remove('hidden');
+        document.getElementById('error-message').textContent = error.message;
+        showToast('Search failed: ' + error.message, 'error');
+    }
+}
+</script>
+{% endblock %}

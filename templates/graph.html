@@ -1,0 +1,451 @@
+{% extends "base.html" %}
+
+{% block title %}Relationship Graph - PI OSINT{% endblock %}
+{% block page_title %}Relationship Graph{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[calc(100vh-180px)]">
+    <!-- Controls Panel -->
+    <div class="lg:col-span-1 space-y-6">
+        <!-- Case Selection -->
+        <div class="bg-dark-800 rounded-xl border border-dark-600 p-6">
+            <h3 class="font-semibold mb-4">Select Case</h3>
+            <select id="case-select" onchange="loadGraph()" class="w-full bg-dark-700 border border-dark-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500">
+                <option value="">-- Select a Case --</option>
+                {% for case in cases %}
+                <option value="{{ case.id }}">{{ case.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Add Entity -->
+        <div class="bg-dark-800 rounded-xl border border-dark-600 p-6">
+            <h3 class="font-semibold mb-4">Add Entity</h3>
+            <form id="add-entity-form" onsubmit="addEntity(event)">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Type</label>
+                        <select id="entity-type" required class="w-full bg-dark-700 border border-dark-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500">
+                            <option value="person">Person</option>
+                            <option value="email">Email</option>
+                            <option value="phone">Phone</option>
+                            <option value="username">Username</option>
+                            <option value="domain">Domain</option>
+                            <option value="company">Company</option>
+                            <option value="address">Address</option>
+                            <option value="ip">IP Address</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Value</label>
+                        <input type="text" id="entity-value" required
+                            class="w-full bg-dark-700 border border-dark-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                            placeholder="Enter value">
+                    </div>
+                    <button type="submit"
+                        class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                        Add Entity
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Add Relationship -->
+        <div class="bg-dark-800 rounded-xl border border-dark-600 p-6">
+            <h3 class="font-semibold mb-4">Add Relationship</h3>
+            <form id="add-relationship-form" onsubmit="addRelationship(event)">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">From</label>
+                        <select id="rel-source" required class="w-full bg-dark-700 border border-dark-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500">
+                            <option value="">Select entity...</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">To</label>
+                        <select id="rel-target" required class="w-full bg-dark-700 border border-dark-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500">
+                            <option value="">Select entity...</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Relationship Type</label>
+                        <input type="text" id="rel-type"
+                            class="w-full bg-dark-700 border border-dark-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                            placeholder="e.g., owns, works_at, knows">
+                    </div>
+                    <button type="submit"
+                        class="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                        Add Relationship
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Legend -->
+        <div class="bg-dark-800 rounded-xl border border-dark-600 p-6">
+            <h3 class="font-semibold mb-4">Legend</h3>
+            <div class="space-y-2 text-sm">
+                <div class="flex items-center space-x-2">
+                    <span class="w-3 h-3 rounded-full bg-blue-500"></span>
+                    <span>Person</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span class="w-3 h-3 rounded-full bg-green-500"></span>
+                    <span>Email</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span class="w-3 h-3 rounded-full bg-yellow-500"></span>
+                    <span>Phone</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span class="w-3 h-3 rounded-full bg-purple-500"></span>
+                    <span>Username</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span class="w-3 h-3 rounded-full bg-red-500"></span>
+                    <span>Domain</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span class="w-3 h-3 rounded-full bg-cyan-500"></span>
+                    <span>Company</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span class="w-3 h-3 rounded-full bg-orange-500"></span>
+                    <span>Address</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span class="w-3 h-3 rounded-full bg-gray-500"></span>
+                    <span>IP Address</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Graph Container -->
+    <div class="lg:col-span-3">
+        <div class="bg-dark-800 rounded-xl border border-dark-600 h-full">
+            <div class="px-6 py-4 border-b border-dark-600 flex items-center justify-between">
+                <h3 class="font-semibold">Network Graph</h3>
+                <div class="flex items-center space-x-2">
+                    <button onclick="fitGraph()" class="px-3 py-1 bg-dark-700 hover:bg-dark-600 rounded-lg text-sm transition-colors">
+                        Fit View
+                    </button>
+                    <button onclick="exportGraph()" class="px-3 py-1 bg-dark-700 hover:bg-dark-600 rounded-lg text-sm transition-colors">
+                        Export
+                    </button>
+                </div>
+            </div>
+
+            <div id="graph-container" class="relative" style="height: calc(100% - 60px);">
+                <!-- Empty State -->
+                <div id="empty-state" class="absolute inset-0 flex items-center justify-center">
+                    <div class="text-center">
+                        <svg class="w-16 h-16 mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                        </svg>
+                        <h4 class="text-lg font-medium text-gray-400">No Graph Data</h4>
+                        <p class="text-gray-500 mt-1">Select a case to view its relationship graph</p>
+                    </div>
+                </div>
+
+                <!-- Graph will be rendered here -->
+                <div id="graph" class="w-full h-full"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Node Details Modal -->
+<div id="node-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+    <div class="bg-dark-800 rounded-xl border border-dark-600 p-6 max-w-md w-full mx-4">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="font-semibold">Entity Details</h3>
+            <button onclick="closeModal()" class="text-gray-400 hover:text-gray-300">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div id="modal-content"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let network = null;
+let graphData = { nodes: [], edges: [] };
+
+// Color mapping for entity types
+const colorMap = {
+    person: '#3b82f6',
+    email: '#22c55e',
+    phone: '#eab308',
+    username: '#a855f7',
+    domain: '#ef4444',
+    company: '#06b6d4',
+    address: '#f97316',
+    ip: '#6b7280'
+};
+
+// Check for case ID in URL
+const urlParams = new URLSearchParams(window.location.search);
+const caseIdFromUrl = urlParams.get('case');
+if (caseIdFromUrl) {
+    document.getElementById('case-select').value = caseIdFromUrl;
+    loadGraph();
+}
+
+async function loadGraph() {
+    const caseId = document.getElementById('case-select').value;
+
+    if (!caseId) {
+        document.getElementById('empty-state').classList.remove('hidden');
+        document.getElementById('graph').innerHTML = '';
+        if (network) {
+            network.destroy();
+            network = null;
+        }
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/graph/${caseId}`);
+        const data = await response.json();
+
+        if (data.error) {
+            showToast(data.error, 'error');
+            return;
+        }
+
+        graphData = data;
+        document.getElementById('empty-state').classList.add('hidden');
+        renderGraph(data);
+        updateEntitySelects(data.nodes);
+
+    } catch (error) {
+        showToast('Failed to load graph: ' + error.message, 'error');
+    }
+}
+
+function renderGraph(data) {
+    const container = document.getElementById('graph');
+
+    // Format nodes with colors
+    const nodes = new vis.DataSet(data.nodes.map(node => ({
+        ...node,
+        color: {
+            background: colorMap[node.group] || '#6b7280',
+            border: colorMap[node.group] || '#6b7280',
+            highlight: {
+                background: colorMap[node.group] || '#6b7280',
+                border: '#ffffff'
+            }
+        },
+        font: { color: '#ffffff', size: 14 },
+        shape: 'dot',
+        size: 20
+    })));
+
+    const edges = new vis.DataSet(data.edges.map(edge => ({
+        ...edge,
+        color: { color: '#4b5563', highlight: '#9ca3af' },
+        font: { color: '#9ca3af', size: 12 },
+        arrows: 'to'
+    })));
+
+    const options = {
+        physics: {
+            enabled: true,
+            barnesHut: {
+                gravitationalConstant: -3000,
+                centralGravity: 0.3,
+                springLength: 150,
+                springConstant: 0.04
+            },
+            stabilization: { iterations: 100 }
+        },
+        interaction: {
+            hover: true,
+            tooltipDelay: 200
+        },
+        nodes: {
+            borderWidth: 2,
+            shadow: true
+        },
+        edges: {
+            width: 2,
+            smooth: { type: 'continuous' }
+        }
+    };
+
+    if (network) {
+        network.destroy();
+    }
+
+    network = new vis.Network(container, { nodes, edges }, options);
+
+    // Click handler
+    network.on('click', function(params) {
+        if (params.nodes.length > 0) {
+            const nodeId = params.nodes[0];
+            const node = data.nodes.find(n => n.id === nodeId);
+            if (node) {
+                showNodeDetails(node);
+            }
+        }
+    });
+}
+
+function updateEntitySelects(nodes) {
+    const sourceSelect = document.getElementById('rel-source');
+    const targetSelect = document.getElementById('rel-target');
+
+    const options = nodes.map(n => `<option value="${n.id}">${n.label} (${n.group})</option>`).join('');
+
+    sourceSelect.innerHTML = '<option value="">Select entity...</option>' + options;
+    targetSelect.innerHTML = '<option value="">Select entity...</option>' + options;
+}
+
+function showNodeDetails(node) {
+    const modal = document.getElementById('node-modal');
+    const content = document.getElementById('modal-content');
+
+    content.innerHTML = `
+        <div class="space-y-4">
+            <div>
+                <p class="text-xs text-gray-500 uppercase tracking-wider">Type</p>
+                <p class="font-medium">${node.group}</p>
+            </div>
+            <div>
+                <p class="text-xs text-gray-500 uppercase tracking-wider">Value</p>
+                <p class="font-medium font-mono">${node.label}</p>
+            </div>
+        </div>
+    `;
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closeModal() {
+    const modal = document.getElementById('node-modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+async function addEntity(event) {
+    event.preventDefault();
+
+    const caseId = document.getElementById('case-select').value;
+    if (!caseId) {
+        showToast('Please select a case first', 'warning');
+        return;
+    }
+
+    const type = document.getElementById('entity-type').value;
+    const value = document.getElementById('entity-value').value.trim();
+
+    if (!value) return;
+
+    try {
+        const response = await fetch('/api/graph/entity', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ case_id: caseId, type, value })
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+            showToast(data.error, 'error');
+            return;
+        }
+
+        showToast('Entity added', 'success');
+        document.getElementById('entity-value').value = '';
+        loadGraph();
+
+    } catch (error) {
+        showToast('Failed to add entity: ' + error.message, 'error');
+    }
+}
+
+async function addRelationship(event) {
+    event.preventDefault();
+
+    const caseId = document.getElementById('case-select').value;
+    if (!caseId) {
+        showToast('Please select a case first', 'warning');
+        return;
+    }
+
+    const sourceId = document.getElementById('rel-source').value;
+    const targetId = document.getElementById('rel-target').value;
+    const relType = document.getElementById('rel-type').value.trim() || 'related';
+
+    if (!sourceId || !targetId) {
+        showToast('Please select both entities', 'warning');
+        return;
+    }
+
+    if (sourceId === targetId) {
+        showToast('Cannot create relationship to self', 'warning');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/graph/relationship', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                case_id: caseId,
+                source_id: sourceId,
+                target_id: targetId,
+                relationship_type: relType
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+            showToast(data.error, 'error');
+            return;
+        }
+
+        showToast('Relationship added', 'success');
+        document.getElementById('rel-type').value = '';
+        loadGraph();
+
+    } catch (error) {
+        showToast('Failed to add relationship: ' + error.message, 'error');
+    }
+}
+
+function fitGraph() {
+    if (network) {
+        network.fit();
+    }
+}
+
+function exportGraph() {
+    if (!network) return;
+
+    const canvas = document.querySelector('#graph canvas');
+    if (canvas) {
+        const link = document.createElement('a');
+        link.download = 'relationship-graph.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        showToast('Graph exported', 'success');
+    }
+}
+
+// Close modal on outside click
+document.getElementById('node-modal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeModal();
+    }
+});
+</script>
+{% endblock %}

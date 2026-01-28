@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block title %}{{ case.name }} - PI OSINT{% endblock %}
+{% block page_title %}Case: {{ case.name }}{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <a href="{{ url_for('cases_page') }}" class="text-blue-400 hover:text-blue-300 flex items-center space-x-1">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+        </svg>
+        <span>Back to Cases</span>
+    </a>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Case Info -->
+    <div class="lg:col-span-1">
+        <div class="bg-dark-800 rounded-xl border border-dark-600 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="font-semibold">Case Details</h3>
+                <span class="px-2 py-1 rounded text-xs font-medium
+                    {% if case.status == 'active' %}bg-green-600/20 text-green-400
+                    {% else %}bg-gray-600/20 text-gray-400{% endif %}">
+                    {{ case.status }}
+                </span>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <p class="text-xs text-gray-500 uppercase tracking-wider">Name</p>
+                    <p class="font-medium">{{ case.name }}</p>
+                </div>
+
+                {% if case.description %}
+                <div>
+                    <p class="text-xs text-gray-500 uppercase tracking-wider">Description</p>
+                    <p class="text-sm text-gray-400">{{ case.description }}</p>
+                </div>
+                {% endif %}
+
+                <div>
+                    <p class="text-xs text-gray-500 uppercase tracking-wider">Created</p>
+                    <p class="text-sm">{{ case.created_at }}</p>
+                </div>
+
+                <div>
+                    <p class="text-xs text-gray-500 uppercase tracking-wider">Last Updated</p>
+                    <p class="text-sm">{{ case.updated_at }}</p>
+                </div>
+            </div>
+
+            <div class="mt-6 pt-4 border-t border-dark-600 space-y-2">
+                <button onclick="toggleCaseStatus('{{ case.id }}', '{{ 'closed' if case.status == 'active' else 'active' }}')"
+                    class="w-full px-4 py-2 bg-dark-700 hover:bg-dark-600 rounded-lg transition-colors text-sm">
+                    {{ 'Close Case' if case.status == 'active' else 'Reopen Case' }}
+                </button>
+
+                <a href="/api/cases/{{ case.id }}/report" target="_blank"
+                    class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors text-sm flex items-center justify-center space-x-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    <span>Generate Report</span>
+                </a>
+
+                <a href="{{ url_for('graph_page') }}?case={{ case.id }}"
+                    class="w-full px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors text-sm flex items-center justify-center space-x-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                    </svg>
+                    <span>View Relationship Graph</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- Entities Summary -->
+        <div class="bg-dark-800 rounded-xl border border-dark-600 p-6 mt-6">
+            <h4 class="font-semibold mb-4">Entities ({{ entities|length }})</h4>
+
+            {% if entities %}
+            <div class="space-y-2 max-h-64 overflow-y-auto">
+                {% for entity in entities %}
+                <div class="flex items-center space-x-3 p-2 bg-dark-700 rounded-lg">
+                    <span class="px-2 py-0.5 rounded text-xs bg-dark-600">{{ entity.entity_type }}</span>
+                    <span class="text-sm truncate">{{ entity.value }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-sm text-gray-500">No entities linked to this case yet.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Searches -->
+    <div class="lg:col-span-2">
+        <div class="bg-dark-800 rounded-xl border border-dark-600">
+            <div class="px-6 py-4 border-b border-dark-600">
+                <h3 class="font-semibold">Linked Searches ({{ searches|length }})</h3>
+            </div>
+
+            <div class="p-6">
+                {% if searches %}
+                <div class="space-y-4">
+                    {% for search in searches %}
+                    <div class="bg-dark-700 rounded-xl p-4">
+                        <div class="flex items-start justify-between">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-10 h-10 rounded-lg flex items-center justify-center
+                                    {% if search.search_type == 'username' %}bg-blue-600/20 text-blue-400
+                                    {% elif search.search_type == 'email' %}bg-green-600/20 text-green-400
+                                    {% elif search.search_type == 'phone' %}bg-yellow-600/20 text-yellow-400
+                                    {% elif search.search_type == 'domain' %}bg-purple-600/20 text-purple-400
+                                    {% elif search.search_type == 'spiderfoot' %}bg-red-600/20 text-red-400
+                                    {% elif search.search_type == 'image' %}bg-cyan-600/20 text-cyan-400
+                                    {% elif search.search_type == 'document' %}bg-orange-600/20 text-orange-400
+                                    {% else %}bg-gray-600/20 text-gray-400{% endif %}">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <p class="font-medium">{{ search.query }}</p>
+                                    <p class="text-xs text-gray-500">
+                                        {{ search.search_type }} &bull; {{ search.created_at }}
+                                    </p>
+                                </div>
+                            </div>
+                            <button onclick="toggleSearchResults('{{ search.id }}')" class="text-sm text-blue-400 hover:text-blue-300">
+                                View Results
+                            </button>
+                        </div>
+
+                        <div id="results-{{ search.id }}" class="hidden mt-4 p-3 bg-dark-600 rounded-lg">
+                            <pre class="text-xs font-mono whitespace-pre-wrap break-all">{{ search.results }}</pre>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-8">
+                    <svg class="w-12 h-12 mx-auto mb-3 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                    <p class="text-gray-500">No searches linked to this case yet.</p>
+                    <p class="text-sm text-gray-600 mt-1">Run searches and select this case to link them.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleSearchResults(searchId) {
+    const el = document.getElementById(`results-${searchId}`);
+    el.classList.toggle('hidden');
+}
+
+async function toggleCaseStatus(caseId, newStatus) {
+    try {
+        const response = await fetch(`/api/cases/${caseId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: newStatus })
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+            showToast(data.error, 'error');
+            return;
+        }
+
+        showToast(`Case ${newStatus === 'closed' ? 'closed' : 'reopened'}`, 'success');
+        window.location.reload();
+
+    } catch (error) {
+        showToast('Failed to update case: ' + error.message, 'error');
+    }
+}
+</script>
+{% endblock %}

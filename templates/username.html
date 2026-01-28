@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+
+{% block title %}Username Search - PI OSINT{% endblock %}
+{% block page_title %}Username Search{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Search Form -->
+    <div class="lg:col-span-1">
+        <div class="bg-dark-800 rounded-xl border border-dark-600 p-6">
+            <h3 class="font-semibold mb-4">Search Username</h3>
+
+            <form id="username-form" onsubmit="searchUsername(event)">
+                <div class="space-y-4">
+                    <!-- Username Input -->
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Username</label>
+                        <input type="text" id="username" name="username" required
+                            class="w-full bg-dark-700 border border-dark-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                            placeholder="Enter username to search">
+                    </div>
+
+                    <!-- Tool Selection -->
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Tools</label>
+                        <div class="space-y-2">
+                            <label class="flex items-center space-x-3 p-2 bg-dark-700 rounded-lg cursor-pointer hover:bg-dark-600">
+                                <input type="checkbox" name="tools" value="sherlock" checked class="form-checkbox rounded bg-dark-600 border-dark-500 text-blue-500">
+                                <div>
+                                    <span class="font-medium">Sherlock</span>
+                                    <p class="text-xs text-gray-500">Hunt across 400+ social networks</p>
+                                </div>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 bg-dark-700 rounded-lg cursor-pointer hover:bg-dark-600">
+                                <input type="checkbox" name="tools" value="maigret" checked class="form-checkbox rounded bg-dark-600 border-dark-500 text-blue-500">
+                                <div>
+                                    <span class="font-medium">Maigret</span>
+                                    <p class="text-xs text-gray-500">Collect user info from 2500+ sites</p>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Options -->
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Options</label>
+                        <label class="flex items-center space-x-3 p-2 bg-dark-700 rounded-lg cursor-pointer hover:bg-dark-600">
+                            <input type="checkbox" name="nsfw" id="nsfw" class="form-checkbox rounded bg-dark-600 border-dark-500 text-blue-500">
+                            <div>
+                                <span class="font-medium">Include NSFW Sites</span>
+                                <p class="text-xs text-gray-500">Search adult-oriented platforms</p>
+                            </div>
+                        </label>
+                    </div>
+
+                    <!-- Link to Case -->
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Link to Case (optional)</label>
+                        <select name="case_id" id="case_id" class="w-full bg-dark-700 border border-dark-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500">
+                            <option value="">-- No Case --</option>
+                            {% for case in cases %}
+                            <option value="{{ case.id }}">{{ case.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" id="search-btn"
+                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center space-x-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                        </svg>
+                        <span>Search</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Search Tips -->
+        <div class="bg-dark-800 rounded-xl border border-dark-600 p-6 mt-6">
+            <h4 class="font-semibold mb-3">Search Tips</h4>
+            <ul class="space-y-2 text-sm text-gray-400">
+                <li class="flex items-start space-x-2">
+                    <svg class="w-4 h-4 mt-0.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <span>Try variations of the username (john_doe, johndoe, john.doe)</span>
+                </li>
+                <li class="flex items-start space-x-2">
+                    <svg class="w-4 h-4 mt-0.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <span>Results are streamed live as they're found</span>
+                </li>
+                <li class="flex items-start space-x-2">
+                    <svg class="w-4 h-4 mt-0.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <span>Link to a case to save results automatically</span>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Results -->
+    <div class="lg:col-span-2">
+        <div class="bg-dark-800 rounded-xl border border-dark-600">
+            <div class="px-6 py-4 border-b border-dark-600 flex items-center justify-between">
+                <h3 class="font-semibold">Results</h3>
+                <div id="status-indicator" class="hidden flex items-center space-x-2">
+                    <div class="spinner"></div>
+                    <span class="text-sm text-gray-400">Searching...</span>
+                </div>
+            </div>
+
+            <div class="p-6" id="results-container">
+                <!-- Empty State -->
+                <div id="empty-state" class="text-center py-12">
+                    <svg class="w-16 h-16 mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                    </svg>
+                    <h4 class="text-lg font-medium text-gray-400">No Results Yet</h4>
+                    <p class="text-gray-500 mt-1">Enter a username and click Search to begin</p>
+                </div>
+
+                <!-- Results Grid -->
+                <div id="results-grid" class="hidden">
+                    <!-- Sherlock Results -->
+                    <div id="sherlock-results" class="mb-6">
+                        <h4 class="font-medium mb-3 flex items-center space-x-2">
+                            <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+                            <span>Sherlock Results</span>
+                            <span id="sherlock-count" class="text-sm text-gray-500">(0)</span>
+                        </h4>
+                        <div id="sherlock-list" class="grid grid-cols-1 md:grid-cols-2 gap-2"></div>
+                    </div>
+
+                    <!-- Maigret Results -->
+                    <div id="maigret-results" class="mb-6">
+                        <h4 class="font-medium mb-3 flex items-center space-x-2">
+                            <span class="w-2 h-2 rounded-full bg-green-500"></span>
+                            <span>Maigret Results</span>
+                            <span id="maigret-count" class="text-sm text-gray-500">(0)</span>
+                        </h4>
+                        <div id="maigret-list" class="grid grid-cols-1 md:grid-cols-2 gap-2"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let eventSource = null;
+let sherlockCount = 0;
+let maigretCount = 0;
+
+async function searchUsername(event) {
+    event.preventDefault();
+
+    const username = document.getElementById('username').value.trim();
+    if (!username) return;
+
+    // Get selected tools
+    const tools = Array.from(document.querySelectorAll('input[name="tools"]:checked')).map(el => el.value);
+    if (tools.length === 0) {
+        showToast('Please select at least one tool', 'warning');
+        return;
+    }
+
+    const nsfw = document.getElementById('nsfw').checked;
+    const caseId = document.getElementById('case_id').value;
+
+    // Reset UI
+    sherlockCount = 0;
+    maigretCount = 0;
+    document.getElementById('sherlock-list').innerHTML = '';
+    document.getElementById('maigret-list').innerHTML = '';
+    document.getElementById('sherlock-count').textContent = '(0)';
+    document.getElementById('maigret-count').textContent = '(0)';
+    document.getElementById('empty-state').classList.add('hidden');
+    document.getElementById('results-grid').classList.remove('hidden');
+    document.getElementById('status-indicator').classList.remove('hidden');
+    document.getElementById('search-btn').disabled = true;
+
+    try {
+        // Start search
+        const response = await fetch('/api/username/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, tools, nsfw, case_id: caseId })
+        });
+
+        const data = await response.json();
+        if (data.error) {
+            showToast(data.error, 'error');
+            return;
+        }
+
+        // Connect to SSE stream
+        if (eventSource) {
+            eventSource.close();
+        }
+
+        eventSource = new EventSource(`/api/username/stream/${data.queue_id}`);
+
+        eventSource.onmessage = function(event) {
+            const msg = JSON.parse(event.data);
+
+            if (msg.type === 'sherlock' && msg.data) {
+                addResult('sherlock', msg.data);
+            } else if (msg.type === 'maigret' && msg.data) {
+                addResult('maigret', msg.data);
+            } else if (msg.type === 'sherlock_done' || msg.type === 'maigret_done') {
+                showToast(msg.message, 'success');
+            } else if (msg.type === 'error') {
+                showToast(`${msg.tool}: ${msg.message}`, 'error');
+            }
+        };
+
+        eventSource.onerror = function() {
+            eventSource.close();
+            document.getElementById('status-indicator').classList.add('hidden');
+            document.getElementById('search-btn').disabled = false;
+            showToast('Search completed', 'success');
+        };
+
+    } catch (error) {
+        showToast('Search failed: ' + error.message, 'error');
+        document.getElementById('status-indicator').classList.add('hidden');
+        document.getElementById('search-btn').disabled = false;
+    }
+}
+
+function addResult(tool, data) {
+    // Extract URL from the line
+    const urlMatch = data.match(/https?:\/\/[^\s]+/);
+    const url = urlMatch ? urlMatch[0] : null;
+
+    // Extract site name
+    let siteName = data;
+    if (url) {
+        try {
+            const urlObj = new URL(url);
+            siteName = urlObj.hostname.replace('www.', '');
+        } catch(e) {
+            siteName = data.split(':')[0] || data;
+        }
+    }
+
+    const listId = `${tool}-list`;
+    const countId = `${tool}-count`;
+    const list = document.getElementById(listId);
+
+    const item = document.createElement('a');
+    item.href = url || '#';
+    item.target = '_blank';
+    item.rel = 'noopener noreferrer';
+    item.className = 'flex items-center space-x-2 p-2 bg-dark-700 rounded-lg hover:bg-dark-600 transition-colors';
+    item.innerHTML = `
+        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+        </svg>
+        <span class="text-sm truncate">${siteName}</span>
+    `;
+
+    list.appendChild(item);
+
+    // Update count
+    if (tool === 'sherlock') {
+        sherlockCount++;
+        document.getElementById('sherlock-count').textContent = `(${sherlockCount})`;
+    } else {
+        maigretCount++;
+        document.getElementById('maigret-count').textContent = `(${maigretCount})`;
+    }
+}
+</script>
+{% endblock %}

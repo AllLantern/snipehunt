@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Case Report: {{ case.name }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #333;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .header .subtitle {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .header .confidential {
+            display: inline-block;
+            background: #dc2626;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        .section h2 {
+            font-size: 18px;
+            margin-bottom: 15px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .section h3 {
+            font-size: 14px;
+            margin-bottom: 10px;
+            color: #666;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 150px 1fr;
+            gap: 10px;
+        }
+
+        .info-grid dt {
+            font-weight: 600;
+            color: #666;
+        }
+
+        .info-grid dd {
+            color: #333;
+        }
+
+        .search-item {
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .search-item .query {
+            font-weight: 600;
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+
+        .search-item .meta {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .search-item .results {
+            font-family: monospace;
+            font-size: 12px;
+            background: #1f2937;
+            color: #e5e7eb;
+            padding: 10px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .entity-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .entity-tag {
+            display: inline-flex;
+            align-items: center;
+            background: #e5e7eb;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .entity-tag .type {
+            font-weight: 600;
+            margin-right: 5px;
+            text-transform: uppercase;
+            font-size: 10px;
+            color: #666;
+        }
+
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .badge-active {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .badge-closed {
+            background: #f3f4f6;
+            color: #6b7280;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 8px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        th {
+            background: #f9fafb;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            color: #666;
+        }
+
+        @media print {
+            body {
+                padding: 20px;
+            }
+
+            .search-item .results {
+                max-height: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>OSINT Investigation Report</h1>
+        <p class="subtitle">Private Investigator Case File</p>
+        <span class="confidential">CONFIDENTIAL</span>
+    </div>
+
+    <div class="section">
+        <h2>Case Information</h2>
+        <dl class="info-grid">
+            <dt>Case ID</dt>
+            <dd>{{ case.id }}</dd>
+
+            <dt>Case Name</dt>
+            <dd>{{ case.name }}</dd>
+
+            <dt>Status</dt>
+            <dd>
+                <span class="badge {% if case.status == 'active' %}badge-active{% else %}badge-closed{% endif %}">
+                    {{ case.status|upper }}
+                </span>
+            </dd>
+
+            <dt>Description</dt>
+            <dd>{{ case.description or 'No description provided' }}</dd>
+
+            <dt>Created</dt>
+            <dd>{{ case.created_at }}</dd>
+
+            <dt>Last Updated</dt>
+            <dd>{{ case.updated_at }}</dd>
+        </dl>
+    </div>
+
+    {% if entities %}
+    <div class="section">
+        <h2>Entities Discovered</h2>
+        <p style="margin-bottom: 15px; color: #666; font-size: 14px;">
+            {{ entities|length }} entities linked to this investigation.
+        </p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th>Value</th>
+                    <th>Added</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entity in entities %}
+                <tr>
+                    <td>{{ entity.entity_type }}</td>
+                    <td style="font-family: monospace;">{{ entity.value }}</td>
+                    <td>{{ entity.created_at }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    {% if searches %}
+    <div class="section">
+        <h2>Search History</h2>
+        <p style="margin-bottom: 15px; color: #666; font-size: 14px;">
+            {{ searches|length }} searches performed during this investigation.
+        </p>
+
+        {% for search in searches %}
+        <div class="search-item">
+            <div class="query">{{ search.query }}</div>
+            <div class="meta">
+                <strong>Type:</strong> {{ search.search_type }} &bull;
+                <strong>Date:</strong> {{ search.created_at }}
+            </div>
+            {% if search.results %}
+            <div class="results">{{ search.results }}</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="footer">
+        <p>Generated by PI OSINT Dashboard</p>
+        <p>Report generated on {{ now().strftime('%Y-%m-%d %H:%M:%S') if now is defined else 'N/A' }}</p>
+        <p style="margin-top: 10px; font-weight: bold;">
+            This document contains confidential information and is intended for authorized personnel only.
+        </p>
+    </div>
+</body>
+</html>

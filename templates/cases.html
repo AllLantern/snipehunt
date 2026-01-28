@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+
+{% block title %}Cases - PI OSINT{% endblock %}
+{% block page_title %}Case Management{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- New Case Form -->
+    <div class="lg:col-span-1">
+        <div class="bg-dark-800 rounded-xl border border-dark-600 p-6">
+            <h3 class="font-semibold mb-4">Create New Case</h3>
+
+            <form id="new-case-form" onsubmit="createCase(event)">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Case Name</label>
+                        <input type="text" id="case-name" required
+                            class="w-full bg-dark-700 border border-dark-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                            placeholder="e.g., Subject Investigation - John Doe">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Description</label>
+                        <textarea id="case-description" rows="3"
+                            class="w-full bg-dark-700 border border-dark-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500 resize-none"
+                            placeholder="Brief description of the case..."></textarea>
+                    </div>
+
+                    <button type="submit"
+                        class="w-full bg-pink-600 hover:bg-pink-700 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center space-x-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                        </svg>
+                        <span>Create Case</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Quick Stats -->
+        <div class="bg-dark-800 rounded-xl border border-dark-600 p-6 mt-6">
+            <h4 class="font-semibold mb-4">Statistics</h4>
+            <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                    <span class="text-gray-400">Total Cases</span>
+                    <span class="font-mono">{{ cases|length }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-gray-400">Active</span>
+                    <span class="font-mono text-green-400">{{ cases|selectattr('status', 'equalto', 'active')|list|length }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-gray-400">Closed</span>
+                    <span class="font-mono text-gray-500">{{ cases|selectattr('status', 'equalto', 'closed')|list|length }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cases List -->
+    <div class="lg:col-span-2">
+        <div class="bg-dark-800 rounded-xl border border-dark-600">
+            <div class="px-6 py-4 border-b border-dark-600 flex items-center justify-between">
+                <h3 class="font-semibold">All Cases</h3>
+                <div class="flex items-center space-x-2">
+                    <select id="status-filter" onchange="filterCases()" class="bg-dark-700 border border-dark-600 rounded-lg px-3 py-1 text-sm">
+                        <option value="all">All Status</option>
+                        <option value="active">Active</option>
+                        <option value="closed">Closed</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="p-6" id="cases-container">
+                {% if cases %}
+                <div class="space-y-3" id="cases-list">
+                    {% for case in cases %}
+                    <div class="case-item bg-dark-700 rounded-xl p-4 hover:bg-dark-600 transition-colors" data-status="{{ case.status }}">
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center space-x-3">
+                                    <a href="{{ url_for('case_detail', case_id=case.id) }}" class="font-medium hover:text-blue-400 truncate">
+                                        {{ case.name }}
+                                    </a>
+                                    <span class="px-2 py-0.5 rounded text-xs font-medium
+                                        {% if case.status == 'active' %}bg-green-600/20 text-green-400
+                                        {% else %}bg-gray-600/20 text-gray-400{% endif %}">
+                                        {{ case.status }}
+                                    </span>
+                                </div>
+                                {% if case.description %}
+                                <p class="text-sm text-gray-500 mt-1 truncate">{{ case.description }}</p>
+                                {% endif %}
+                                <div class="flex items-center space-x-4 mt-2 text-xs text-gray-500">
+                                    <span>{{ case.search_count }} searches</span>
+                                    <span>{{ case.entity_count }} entities</span>
+                                    <span>Created: {{ case.created_at }}</span>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-2 ml-4">
+                                <a href="{{ url_for('case_detail', case_id=case.id) }}"
+                                    class="p-2 hover:bg-dark-500 rounded-lg transition-colors" title="View Case">
+                                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                    </svg>
+                                </a>
+                                <a href="/api/cases/{{ case.id }}/report" target="_blank"
+                                    class="p-2 hover:bg-dark-500 rounded-lg transition-colors" title="Generate Report">
+                                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                    </svg>
+                                </a>
+                                <button onclick="deleteCase('{{ case.id }}')"
+                                    class="p-2 hover:bg-red-600/20 rounded-lg transition-colors" title="Delete Case">
+                                    <svg class="w-5 h-5 text-gray-400 hover:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-12">
+                    <svg class="w-16 h-16 mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/>
+                    </svg>
+                    <h4 class="text-lg font-medium text-gray-400">No Cases Yet</h4>
+                    <p class="text-gray-500 mt-1">Create your first case to get started</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function createCase(event) {
+    event.preventDefault();
+
+    const name = document.getElementById('case-name').value.trim();
+    const description = document.getElementById('case-description').value.trim();
+
+    if (!name) {
+        showToast('Case name is required', 'warning');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/cases', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, description })
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+            showToast(data.error, 'error');
+            return;
+        }
+
+        showToast('Case created successfully', 'success');
+        window.location.reload();
+
+    } catch (error) {
+        showToast('Failed to create case: ' + error.message, 'error');
+    }
+}
+
+async function deleteCase(caseId) {
+    if (!confirm('Are you sure you want to delete this case? All associated searches and entities will be deleted.')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/cases/${caseId}`, {
+            method: 'DELETE'
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+            showToast(data.error, 'error');
+            return;
+        }
+
+        showToast('Case deleted', 'success');
+        window.location.reload();
+
+    } catch (error) {
+        showToast('Failed to delete case: ' + error.message, 'error');
+    }
+}
+
+function filterCases() {
+    const filter = document.getElementById('status-filter').value;
+    const items = document.querySelectorAll('.case-item');
+
+    items.forEach(item => {
+        const status = item.dataset.status;
+        if (filter === 'all' || status === filter) {
+            item.classList.remove('hidden');
+        } else {
+            item.classList.add('hidden');
+        }
+    });
+}
+</script>
+{% endblock %}
